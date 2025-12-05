@@ -1,0 +1,5 @@
+{
+  "name": "Fresher Welcome Voting",
+  "description": "Online voting system for the University Fresher Welcome Ceremony allowing students to vote for King, Queen, Prince, and Princess with secure class-based authentication.",
+  "requestFramePermissions": []
+}
