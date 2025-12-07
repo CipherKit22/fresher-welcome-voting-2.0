@@ -18,7 +18,12 @@ export enum Major {
   EP = "EP",
   EC = "EC",
   Mechanical = "Mechanical",
-  MC = "MC"
+  MC = "MC",
+  Myanmar = "Myanmar",
+  English = "English",
+  Math = "Engineering Mathematics",
+  Chem = "Engineering Chemistry",
+  Phys = "Engineering Physics"
 }
 
 export enum AdminRole {

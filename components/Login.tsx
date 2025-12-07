@@ -1,8 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Major, Year, StudentInfo } from '../types';
-import { verifyStudent, verifyTeacher } from '../services/supabaseService';
-import { MOCK_TEACHERS } from '../constants';
+import { verifyStudent, verifyTeacher, fetchTeachers } from '../services/supabaseService';
 
 interface LoginProps {
   onLogin: (student: StudentInfo) => void;
@@ -28,8 +27,20 @@ const Login: React.FC<LoginProps> = ({ onLogin, onAdminClick }) => {
   // Teacher Form
   const [teacherName, setTeacherName] = useState('');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [teacherList, setTeacherList] = useState<string[]>([]);
   
-  // Tutorial Logic
+  // Load teachers when major changes for autocomplete
+  useEffect(() => {
+    if (activeTab === 'teacher') {
+        fetchTeachers(major).then(names => setTeacherList(names));
+    }
+  }, [major, activeTab]);
+
+  // Filter teachers
+  const filteredTeachers = teacherList.filter(name => 
+    name.toLowerCase().includes(teacherName.toLowerCase())
+  );
+
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -60,12 +71,6 @@ const Login: React.FC<LoginProps> = ({ onLogin, onAdminClick }) => {
       onLogin(verifiedUser);
     }
   };
-
-  // Filter teachers based on major
-  const availableTeachers = MOCK_TEACHERS[major] || [];
-  const filteredTeachers = availableTeachers.filter(name => 
-    name.toLowerCase().includes(teacherName.toLowerCase())
-  );
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -220,14 +225,14 @@ const Login: React.FC<LoginProps> = ({ onLogin, onAdminClick }) => {
                 </div>
 
                 <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 ml-1">Passcode</label>
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 ml-1">Class Passcode</label>
                     <div className="relative">
                         <input 
                         type={showPasscode ? 'text' : 'password'}
                         value={passcode}
                         onChange={(e) => setPasscode(e.target.value)}
                         required
-                        placeholder="••••••"
+                        placeholder="Get from your EC"
                         className="w-full bg-white border border-slate-300 text-slate-800 px-4 py-3 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 outline-none transition-all placeholder-slate-400 text-sm tracking-widest rounded-lg shadow-sm pr-10"
                         />
                         <button 
@@ -357,10 +362,20 @@ const Login: React.FC<LoginProps> = ({ onLogin, onAdminClick }) => {
                   <div className="flex gap-4 items-start">
                     <div className="w-8 h-8 rounded-full bg-cyan-100 text-cyan-600 flex items-center justify-center font-bold shrink-0 text-sm border border-cyan-200">2</div>
                     <div>
-                        <h4 className="font-bold text-slate-700 text-xs uppercase tracking-wider">Enter Details</h4>
+                        <h4 className="font-bold text-slate-700 text-xs uppercase tracking-wider">Get Passcode</h4>
                         <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                            Students use <span className="underline">Roll No & Fruit Code</span>.<br/>
-                            Teachers select <span className="underline">Department & Name</span>.
+                            For Students: <span className="underline font-bold text-slate-700">Get your Passcode from your Class Leader (EC)</span>. It is a secret random word (e.g., "Apple" or "Sky").
+                        </p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-4 items-start">
+                    <div className="w-8 h-8 rounded-full bg-cyan-100 text-cyan-600 flex items-center justify-center font-bold shrink-0 text-sm border border-cyan-200">3</div>
+                    <div>
+                        <h4 className="font-bold text-slate-700 text-xs uppercase tracking-wider">Fill Details</h4>
+                        <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                            <strong>Students:</strong> Enter Year, Major, Roll Number and the Passcode.<br/>
+                            <strong>Teachers:</strong> Select Department & Name from the list.
                         </p>
                     </div>
                   </div>

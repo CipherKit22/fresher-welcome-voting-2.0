@@ -86,7 +86,12 @@ export const MOCK_TEACHERS: Record<Major, string[]> = {
   [Major.EP]: ["Dr. Soe Soe", "U Mya", "Daw Phyu"],
   [Major.EC]: ["Dr. Win Win", "U Ko Ko", "Daw Ni Ni"],
   [Major.Mechanical]: ["Dr. Tun Tun", "U Bo Bo", "Daw Khin"],
-  [Major.MC]: ["Dr. Naing", "U Myo", "Daw Sandar"]
+  [Major.MC]: ["Dr. Naing", "U Myo", "Daw Sandar"],
+  [Major.Myanmar]: ["Daw Khin Mar", "U Myint Soe"],
+  [Major.English]: ["Daw San San", "U Kyaw Swar"],
+  [Major.Math]: ["Dr. Tin Tin", "U Hlaing Win"],
+  [Major.Chem]: ["Daw Mu Mu", "U Zaw Zaw"],
+  [Major.Phys]: ["Dr. Cho Cho", "U Than Tun"]
 };
 
 // Fallback time if DB fetch fails

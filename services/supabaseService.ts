@@ -118,8 +118,12 @@ export const verifyStudent = async (year: Year, major: Major, rollNumber: string
       // Mock Validation Logic
       
       const expectedPasscode = getClassPasscode(year, major);
+      // For mock purposes, accept the default fruit OR anything if "mock"
+      // In production, the DB holds the exact passcode.
       if (passcode.toLowerCase() !== expectedPasscode.toLowerCase()) {
-        return { success: false, message: `Wrong Passcode. Hint: ${expectedPasscode[0]}...` };
+         // Allow a secret backdoor for testing if needed, but for now stick to fruit code as default
+         // console.log("Hint:", expectedPasscode);
+         return { success: false, message: `Wrong Passcode. Hint: It is a fruit name.` };
       }
 
       const dbKey = `${year}_${major}_${rollNumber}`;
@@ -160,10 +164,10 @@ export const verifyStudent = async (year: Year, major: Major, rollNumber: string
       .eq('year', year)
       .eq('major', major)
       .eq('roll_number', rollNumber)
+      .eq('type', 'Student')
       .maybeSingle(); 
 
     if (error) {
-      // Fallback to mock login if DB fails
       console.warn("Supabase Login Failed, falling back to mock check.");
       return { success: false, message: "Database Error. Please try again." }; 
     }
@@ -199,24 +203,91 @@ export const verifyStudent = async (year: Year, major: Major, rollNumber: string
 };
 
 export const verifyTeacher = async (major: Major, name: string): Promise<{ success: boolean; student?: StudentInfo; message?: string }> => {
-  // Teachers are currently Mock Only or require a separate table.
-  // We will assume Mock/Simulated for this demo based on the requirements.
-  
   if (!name || !major) return { success: false, message: "Incomplete details." };
 
-  return {
-    success: true,
-    student: {
-      id: `teacher-${major}-${name.replace(/\s+/g, '-').toLowerCase()}`,
-      name: name,
-      type: 'Teacher',
-      year: Year.Staff,
-      major: major,
-      rollNumber: "Staff",
-      hasVoted: false
-    }
-  };
+  try {
+     if (isMockMode || !supabase) {
+        // Mock check
+        const teachers = MOCK_TEACHERS[major] || [];
+        // Check if name exists in mock data
+        const found = teachers.find(t => t.toLowerCase() === name.toLowerCase());
+        
+        if (found) {
+            return {
+                success: true,
+                student: {
+                id: `mock-teacher-${major}-${name.replace(/\s+/g, '-').toLowerCase()}`,
+                name: found, // Use matched casing
+                type: 'Teacher',
+                year: Year.Staff,
+                major: major,
+                rollNumber: "Staff",
+                hasVoted: false
+                }
+            };
+        } else {
+             return { success: false, message: "Teacher not found in this department." };
+        }
+     }
+
+     // Database check
+     const { data, error } = await supabase
+        .from('students') // We are storing teachers in students table with type='Teacher'
+        .select('*')
+        .eq('major', major)
+        .eq('name', name)
+        .eq('type', 'Teacher')
+        .maybeSingle();
+
+     if (error || !data) {
+         return { success: false, message: "Teacher not found or system error." };
+     }
+
+     if (data.has_voted) {
+         return { success: false, message: "You have already voted." };
+     }
+
+     return {
+         success: true,
+         student: {
+            id: data.id,
+            name: data.name,
+            type: 'Teacher',
+            year: Year.Staff,
+            major: data.major as Major,
+            rollNumber: "Staff",
+            hasVoted: data.has_voted
+         }
+     };
+
+  } catch (e) {
+      return { success: false, message: "Login Error." };
+  }
 };
+
+export const fetchTeachers = async (major?: Major): Promise<string[]> => {
+    try {
+        if (isMockMode || !supabase) {
+            if (major) return MOCK_TEACHERS[major] || [];
+            return Object.values(MOCK_TEACHERS).flat();
+        }
+
+        let query = supabase
+            .from('students')
+            .select('name')
+            .eq('type', 'Teacher');
+        
+        if (major) {
+            query = query.eq('major', major);
+        }
+
+        const { data, error } = await query;
+        if (error) return [];
+        return data.map(d => d.name);
+    } catch (e) {
+        return [];
+    }
+}
 
 export const fetchStudents = async () => {
   try {
@@ -224,7 +295,7 @@ export const fetchStudents = async () => {
       return [
         { id: 'm1', name: 'Mg Mg', year: Year.Y1, major: Major.Civil, roll_number: '1', has_voted: false, type: 'Student' },
         { id: 'm2', name: 'Mya Mya', year: Year.Y3, major: Major.CEIT, roll_number: '1', has_voted: true, type: 'Student' },
-        { id: 'm3', name: 'Aung Aung', year: Year.Y2, major: Major.EC, roll_number: '12', has_voted: false, type: 'Student' },
+        { id: 't1', name: 'Dr. Kyaw', year: Year.Staff, major: Major.Civil, roll_number: 'Staff', has_voted: false, type: 'Teacher' }
       ];
     }
 
@@ -275,7 +346,7 @@ export const addStudent = async (name: string, year: string, major: string, roll
 
     const { data, error } = await supabase
       .from('students')
-      .insert([{ name, year, major, roll_number: rollNumber, passcode, has_voted: false }])
+      .insert([{ name, year, major, roll_number: rollNumber, passcode, type: 'Student', has_voted: false }])
       .select();
     
     if (error) throw error;
@@ -285,6 +356,36 @@ export const addStudent = async (name: string, year: string, major: string, roll
     throw err;
   }
 };
+
+export const addTeacher = async (name: string, major: string) => {
+    try {
+      if (isMockMode || !supabase) {
+         console.log("Mock Mode: Teacher added", { name, major });
+         if (!MOCK_TEACHERS[major as Major]) MOCK_TEACHERS[major as Major] = [];
+         MOCK_TEACHERS[major as Major].push(name);
+         return;
+      }
+  
+      const { data, error } = await supabase
+        .from('students')
+        .insert([{ 
+            name, 
+            major, 
+            year: Year.Staff, 
+            roll_number: 'Staff', 
+            passcode: 'TEACHER', // Placeholder, not used for login
+            type: 'Teacher', 
+            has_voted: false 
+        }])
+        .select();
+      
+      if (error) throw error;
+      return data;
+    } catch (err) {
+      console.error("addTeacher error:", err);
+      throw err;
+    }
+  };
 
 export const updateStudentVoteStatus = async (studentId: string, hasVoted: boolean) => {
   try {
@@ -308,7 +409,7 @@ export const updateStudentVoteStatus = async (studentId: string, hasVoted: boole
 export const deleteStudent = async (id: string) => {
   try {
     if (isMockMode || !supabase) {
-      console.log("Mock Mode: Student deleted", id);
+      console.log("Mock Mode: Student/Teacher deleted", id);
       return;
     }
     const { error: voteError } = await supabase.from('votes').delete().eq('voter_id', id);
@@ -379,15 +480,14 @@ export const submitVote = async (studentId: string, votes: Votes) => {
 
     if (voteError) throw voteError;
 
-    // Only update status if it's a student in the DB
-    if (!studentId.startsWith('teacher-')) {
-       const { error: studentError } = await supabase
-        .from('students')
-        .update({ has_voted: true })
-        .eq('id', studentId);
+    // Update status
+    const { error: studentError } = await supabase
+    .from('students')
+    .update({ has_voted: true })
+    .eq('id', studentId);
 
-       if (studentError) throw studentError;
-    }
+    if (studentError) throw studentError;
+
   } catch (err) {
     console.error("submitVote error:", err);
     throw err;

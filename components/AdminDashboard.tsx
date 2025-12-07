@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Candidate, Major, AdminRole, Year } from '../types';
-import { fetchVoteResults, fetchCandidates, addCandidate, deleteCandidate, fetchStudents, addStudent, deleteStudent, fetchEventStartTime, updateEventStartTime, fetchTotalStudentCount, updateStudentVoteStatus, bulkDeleteStudents, bulkUpdateStudentStatus, resetAllVotes } from '../services/supabaseService';
+import { fetchVoteResults, fetchCandidates, addCandidate, deleteCandidate, fetchStudents, addStudent, deleteStudent, fetchEventStartTime, updateEventStartTime, fetchTotalStudentCount, updateStudentVoteStatus, bulkDeleteStudents, bulkUpdateStudentStatus, resetAllVotes, addTeacher } from '../services/supabaseService';
 
 interface AdminDashboardProps {
   adminRole: AdminRole;
@@ -38,7 +38,7 @@ const Toast: React.FC<{ message: string; type: 'success' | 'error'; onClose: () 
 };
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) => {
-  const [activeTab, setActiveTab] = useState<'results' | 'candidates' | 'students' | 'settings'>('results');
+  const [activeTab, setActiveTab] = useState<'results' | 'candidates' | 'students' | 'teachers' | 'settings'>('results');
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [students, setStudents] = useState<any[]>([]);
   const [votes, setVotes] = useState<Record<string, Record<string, number>>>({
@@ -53,6 +53,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   // Granular Loading States
   const [isAddingCandidate, setIsAddingCandidate] = useState(false);
   const [isAddingStudent, setIsAddingStudent] = useState(false);
+  const [isAddingTeacher, setIsAddingTeacher] = useState(false);
   const [isProcessingDelete, setIsProcessingDelete] = useState(false);
   const [isUpdatingTime, setIsUpdatingTime] = useState(false);
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
@@ -70,7 +71,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
 
   // Modal States
-  const [deleteModal, setDeleteModal] = useState<{ type: 'candidate' | 'student'; id: string; name: string } | null>(null);
+  const [deleteModal, setDeleteModal] = useState<{ type: 'candidate' | 'student' | 'teacher'; id: string; name: string } | null>(null);
   const [voteDetailModal, setVoteDetailModal] = useState<{ name: string; category: string; count: number; percentage: string; totalStudents: number } | null>(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetConfirmationText, setResetConfirmationText] = useState('');
@@ -87,6 +88,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   const [newStudRoll, setNewStudRoll] = useState('');
   const [newStudPasscode, setNewStudPasscode] = useState('');
   const [showStudentPasscode, setShowStudentPasscode] = useState(false);
+
+  // Teacher Form
+  const [newTeacherName, setNewTeacherName] = useState('');
+  const [newTeacherMajor, setNewTeacherMajor] = useState<Major>(Major.Civil);
 
   // Initial Data Load
   useEffect(() => {
@@ -211,6 +216,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
     setDeleteModal({ type: 'student', id, name });
   };
 
+  const promptDeleteTeacher = (id: string, name: string) => {
+    setDeleteModal({ type: 'teacher', id, name });
+  };
+
   const confirmDelete = async () => {
     if (!deleteModal) return;
     setIsProcessingDelete(true);
@@ -223,7 +232,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
       } else {
         await deleteStudent(deleteModal.id);
         await loadStudents();
-        showToast('Student deleted');
+        showToast(`${deleteModal.type === 'teacher' ? 'Teacher' : 'Student'} deleted`);
       }
       setDeleteModal(null);
     } catch (e) {
@@ -249,6 +258,21 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
       setIsAddingStudent(false);
     }
   };
+
+  const handleAddTeacher = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsAddingTeacher(true);
+    try {
+        await addTeacher(newTeacherName, newTeacherMajor);
+        setNewTeacherName('');
+        await loadStudents();
+        showToast('Teacher added successfully!');
+    } catch (e) {
+        showToast('Failed to add teacher.', 'error');
+    } finally {
+        setIsAddingTeacher(false);
+    }
+  }
 
   const handleStudentStatusChange = async (id: string, hasVoted: boolean) => {
     if (adminRole !== AdminRole.SuperAdmin) return;
@@ -282,7 +306,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
 
   const handleBulkDelete = async () => {
     if (selectedStudentIds.size === 0) return;
-    if (!window.confirm(`Are you sure you want to delete ${selectedStudentIds.size} students?`)) return;
+    if (!window.confirm(`Are you sure you want to delete ${selectedStudentIds.size} users?`)) return;
     
     setIsBulkProcessing(true);
     try {
@@ -314,8 +338,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   };
 
   const getFilteredStudents = () => {
+    // Filter only Students (type != Teacher)
     const yearOrder = Object.values(Year);
     const filtered = students.filter(s => {
+      if (s.type === 'Teacher') return false; 
       const matchSearch = (s.name || '').toLowerCase().includes(studentSearch.toLowerCase()) || 
                           (s.roll_number || '').toLowerCase().includes(studentSearch.toLowerCase());
       const matchYear = filterYear === 'All' || s.year === filterYear;
@@ -338,7 +364,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
     });
   };
 
+  const getFilteredTeachers = () => {
+     return students.filter(s => s.type === 'Teacher');
+  }
+
   const displayedStudents = getFilteredStudents();
+  const displayedTeachers = getFilteredTeachers();
   const allDisplayedSelected = displayedStudents.length > 0 && displayedStudents.every(s => selectedStudentIds.has(s.id));
 
   // Render logic for results
@@ -552,7 +583,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
 
       {/* Modern Tabs */}
       <div className="mb-8 p-1 bg-slate-200/50 rounded-xl inline-flex overflow-hidden">
-        {['results', ...(adminRole === AdminRole.SuperAdmin ? ['candidates', 'students', 'settings'] : [])].map((tab) => (
+        {['results', ...(adminRole === AdminRole.SuperAdmin ? ['candidates', 'students', 'teachers', 'settings'] : [])].map((tab) => (
             <button
                 key={tab}
                 onClick={() => setActiveTab(tab as any)}
@@ -692,6 +723,102 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                   </button>
                 </form>
             </div>
+            </div>
+        )}
+
+        {/* Manage Teachers */}
+        {!isLoading && activeTab === 'teachers' && adminRole === AdminRole.SuperAdmin && (
+            <div className="grid lg:grid-cols-3 gap-8 animate-fadeIn">
+              <div className="lg:col-span-2">
+                 <div className="glass-panel bg-white p-4 mb-4 rounded-xl flex justify-between items-center border border-slate-200">
+                     <h4 className="font-bold text-slate-700 text-xs uppercase tracking-wider">Staff List</h4>
+                     <span className="bg-cyan-50 text-cyan-700 text-[10px] font-bold px-3 py-1 rounded border border-cyan-100 uppercase">
+                        Total: {displayedTeachers.length}
+                     </span>
+                 </div>
+                 
+                 <div className="overflow-x-auto glass-panel bg-white rounded-xl max-h-[600px] overflow-y-auto custom-scrollbar border border-slate-200">
+                    <table className="w-full text-left text-sm text-slate-600">
+                        <thead className="text-xs uppercase bg-slate-100 text-slate-500 sticky top-0 z-10 backdrop-blur-md">
+                          <tr>
+                              <th className="px-4 py-3 whitespace-nowrap">Name</th>
+                              <th className="px-4 py-3 whitespace-nowrap">Department</th>
+                              <th className="px-4 py-3 whitespace-nowrap">Status</th>
+                              <th className="px-4 py-3 whitespace-nowrap">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {displayedTeachers.length > 0 ? (
+                            displayedTeachers.map((teach) => (
+                              <tr key={teach.id} className="border-b border-slate-100 hover:bg-slate-50">
+                                <td className="px-4 py-3 font-bold text-slate-800 whitespace-nowrap">{teach.name}</td>
+                                <td className="px-4 py-3 text-xs whitespace-nowrap font-mono text-cyan-700 bg-cyan-50 rounded px-2 w-fit">{teach.major}</td>
+                                <td className="px-4 py-3">
+                                   {teach.has_voted 
+                                     ? <span className="text-green-600 font-bold text-[10px] uppercase">Voted</span>
+                                     : <span className="text-slate-400 font-bold text-[10px] uppercase">Pending</span>
+                                   }
+                                </td>
+                                <td className="px-4 py-3">
+                                    <button 
+                                      onClick={() => promptDeleteTeacher(teach.id, teach.name)} 
+                                      className="text-red-500 hover:text-red-700 text-xs font-bold"
+                                    >
+                                      Remove
+                                    </button>
+                                </td>
+                              </tr>
+                            ))
+                          ) : (
+                             <tr>
+                               <td colSpan={4} className="px-4 py-8 text-center text-slate-400 font-mono text-xs">No teachers found.</td>
+                             </tr>
+                          )}
+                        </tbody>
+                    </table>
+                 </div>
+              </div>
+
+              <div className="glass-panel bg-white p-6 h-fit sticky top-4 rounded-xl border border-slate-200">
+                  <h3 className="text-lg font-tech text-slate-800 mb-4 uppercase tracking-wider">Add Teacher</h3>
+                  <form onSubmit={handleAddTeacher} className="space-y-4">
+                     <div>
+                        <label className="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Teacher Name</label>
+                        <input 
+                          required 
+                          disabled={isAddingTeacher}
+                          value={newTeacherName} 
+                          onChange={e => setNewTeacherName(e.target.value)} 
+                          className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-sm rounded-lg outline-none focus:border-cyan-500" 
+                        />
+                     </div>
+                     <div>
+                        <label className="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Department</label>
+                        <div className="relative">
+                            <select 
+                                disabled={isAddingTeacher}
+                                value={newTeacherMajor} 
+                                onChange={e => setNewTeacherMajor(e.target.value as Major)} 
+                                className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-xs rounded-lg appearance-none pr-8"
+                            >
+                                {Object.values(Major).map(m => <option key={m} value={m}>{m}</option>)}
+                            </select>
+                            <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-slate-500">
+                                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </div>
+                        </div>
+                     </div>
+                     
+                     <button 
+                       disabled={isAddingTeacher}
+                       className="w-full bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-3 rounded-lg disabled:opacity-50 flex justify-center uppercase text-xs tracking-wider shadow-md shadow-cyan-200"
+                     >
+                       {isAddingTeacher ? <span className="flex items-center gap-2"><Spinner /> Processing</span> : 'Add Teacher'}
+                     </button>
+                  </form>
+              </div>
             </div>
         )}
 
