@@ -25,7 +25,14 @@
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script>
       // Polyfill process.env to prevent crashes in browser environments
-      window.process = { env: { API_KEY: '', SUPABASE_URL: '', SUPABASE_KEY: '' } };
+      // We check if it exists first to avoid overwriting values injected by bundlers
+      window.process = window.process || { env: {} };
+      window.process.env = window.process.env || {};
+      
+      // Initialize defaults only if missing
+      if (typeof window.process.env.API_KEY === 'undefined') window.process.env.API_KEY = '';
+      if (typeof window.process.env.SUPABASE_URL === 'undefined') window.process.env.SUPABASE_URL = '';
+      if (typeof window.process.env.SUPABASE_KEY === 'undefined') window.process.env.SUPABASE_KEY = '';
     </script>
     <style>
       body {

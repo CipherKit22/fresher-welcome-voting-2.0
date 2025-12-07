@@ -1,13 +1,30 @@
-
 import { GoogleGenAI, Chat, GenerateContentResponse } from "@google/genai";
 
 let genAI: GoogleGenAI | null = null;
 let chatSession: Chat | null = null;
 
-// Safe access to process.env for browser environments
+// Safe access to environment variables supporting Vite and Standard Process Env
 const getApiKey = () => {
   try {
-    return (typeof process !== 'undefined' && process.env && process.env.API_KEY) || '';
+    // 1. Try Vite (import.meta.env)
+    // @ts-ignore
+    if (typeof import.meta !== 'undefined' && import.meta.env) {
+      // @ts-ignore
+      const val = import.meta.env.VITE_API_KEY || import.meta.env.API_KEY;
+      if (val) return val;
+    }
+    
+    // 2. Try process.env
+    if (typeof process !== 'undefined' && process.env) {
+      return process.env.VITE_API_KEY || process.env.API_KEY || '';
+    }
+
+    // 3. Fallback
+    if (typeof window !== 'undefined' && (window as any).process?.env) {
+       return (window as any).process.env.VITE_API_KEY || (window as any).process.env.API_KEY || '';
+    }
+
+    return '';
   } catch {
     return '';
   }
