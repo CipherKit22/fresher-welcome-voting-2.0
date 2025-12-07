@@ -5,7 +5,7 @@ import CandidateCard from './CandidateCard';
 import { fetchCandidates, fetchEventStartTime } from '../services/supabaseService';
 
 interface BallotProps {
-  onSubmit: (votes: Votes) => void;
+  onSubmit: (votes: Votes) => Promise<void>;
 }
 
 const Ballot: React.FC<BallotProps> = ({ onSubmit }) => {
@@ -20,6 +20,7 @@ const Ballot: React.FC<BallotProps> = ({ onSubmit }) => {
   const [targetTime, setTargetTime] = useState<number>(0);
   const [isEventStarted, setIsEventStarted] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Load Data
   useEffect(() => {
@@ -61,7 +62,7 @@ const Ballot: React.FC<BallotProps> = ({ onSubmit }) => {
   };
 
   const handleCandidateClick = (candidateId: string) => {
-    if (!isEventStarted) return;
+    if (!isEventStarted || isSubmitting) return;
     
     setVotes(prev => {
       if (activeSection === 'Male') {
@@ -71,6 +72,17 @@ const Ballot: React.FC<BallotProps> = ({ onSubmit }) => {
         return { ...prev, female: prev.female === candidateId ? null : candidateId };
       }
     });
+  };
+
+  const handleSubmit = async () => {
+    if (isSubmitting || !allVotesCast || !isEventStarted) return;
+    
+    setIsSubmitting(true);
+    try {
+      await onSubmit(votes);
+    } catch (e) {
+      setIsSubmitting(false);
+    }
   };
 
   const isSelected = (id: string) => votes.male === id || votes.female === id;
@@ -128,7 +140,7 @@ const Ballot: React.FC<BallotProps> = ({ onSubmit }) => {
               key={candidate.id}
               candidate={candidate}
               isSelected={isSelected(candidate.id)}
-              isDisabled={false} 
+              isDisabled={isSubmitting} 
               onSelect={handleCandidateClick}
             />
           );
@@ -173,17 +185,26 @@ const Ballot: React.FC<BallotProps> = ({ onSubmit }) => {
             </div>
 
             <button
-                onClick={() => onSubmit(votes)}
-                disabled={!allVotesCast || !isEventStarted}
+                onClick={handleSubmit}
+                disabled={!allVotesCast || !isEventStarted || isSubmitting}
                 className={`
-                w-full md:w-auto px-10 py-4 font-tech font-bold text-xl uppercase tracking-widest transition-all rounded-xl shadow-lg
-                ${allVotesCast && isEventStarted
+                w-full md:w-auto px-10 py-4 font-tech font-bold text-xl uppercase tracking-widest transition-all rounded-xl shadow-lg flex items-center justify-center gap-3
+                ${allVotesCast && isEventStarted && !isSubmitting
                     ? 'bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white shadow-cyan-200 transform hover:scale-105' 
                     : 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300'
                 }
                 `}
             >
-                {isEventStarted ? (allVotesCast ? 'Submit Votes' : 'Pick Both') : 'Locked'}
+                {isSubmitting && (
+                    <svg className="animate-spin h-5 w-5 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                )}
+                {isSubmitting 
+                    ? 'Sending...' 
+                    : (isEventStarted ? (allVotesCast ? 'Submit Votes' : 'Pick Both') : 'Locked')
+                }
             </button>
         </div>
       </div>

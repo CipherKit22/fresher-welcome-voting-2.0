@@ -517,14 +517,28 @@ export const submitVote = async (studentId: string, votes: Votes) => {
   try {
     if (isMockMode || !supabase) {
       console.log("Mock Mode: Vote submitted for", studentId, votes);
+      const student = MOCK_STUDENTS.find(s => s.id === studentId);
+      if (student && student.hasVoted) throw new Error("Already voted");
+
       MOCK_VOTES.push({
         voter_id: studentId,
         king_id: votes.male, 
         queen_id: votes.female
       });
-      const student = MOCK_STUDENTS.find(s => s.id === studentId);
       if (student) student.hasVoted = true;
       return;
+    }
+
+    // 1. Safety Check: Check status before inserting to prevent race conditions during lag
+    const { data: studentCheck, error: checkError } = await supabase
+      .from('students')
+      .select('has_voted')
+      .eq('id', studentId)
+      .single();
+    
+    if (checkError) throw checkError;
+    if (studentCheck && studentCheck.has_voted) {
+      throw new Error("You have already voted.");
     }
 
     const { error: voteError } = await supabase
