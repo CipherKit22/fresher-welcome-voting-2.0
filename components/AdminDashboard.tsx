@@ -91,7 +91,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   // Initial Data Load
   useEffect(() => {
     loadData();
-    // Optimized polling interval: 10s instead of 5s to reduce load
     const interval = setInterval(loadResultsOnly, 10000); 
     return () => clearInterval(interval);
   }, []);
@@ -102,12 +101,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
 
   const loadData = async () => {
     setIsLoading(true);
-    await Promise.all([
-      loadResultsOnly(),
-      loadCandidates(),
-      adminRole === AdminRole.SuperAdmin ? loadStudents() : Promise.resolve(),
-      loadEventTime()
-    ]);
+    try {
+      await Promise.all([
+        loadResultsOnly(),
+        loadCandidates(),
+        adminRole === AdminRole.SuperAdmin ? loadStudents() : Promise.resolve(),
+        loadEventTime()
+      ]);
+    } catch (e) {
+      console.error("Critical load error", e);
+    }
     setIsLoading(false);
   };
 
@@ -313,8 +316,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   const getFilteredStudents = () => {
     const yearOrder = Object.values(Year);
     const filtered = students.filter(s => {
-      const matchSearch = s.name.toLowerCase().includes(studentSearch.toLowerCase()) || 
-                          s.roll_number.toLowerCase().includes(studentSearch.toLowerCase());
+      const matchSearch = (s.name || '').toLowerCase().includes(studentSearch.toLowerCase()) || 
+                          (s.roll_number || '').toLowerCase().includes(studentSearch.toLowerCase());
       const matchYear = filterYear === 'All' || s.year === filterYear;
       const matchMajor = filterMajor === 'All' || s.major === filterMajor;
       const matchStatus = filterStatus === 'All' || 
@@ -324,13 +327,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
 
     return filtered.sort((a, b) => {
         if (studentSort === 'name') {
-            return a.name.localeCompare(b.name);
+            return (a.name || '').localeCompare(b.name || '');
         } else if (studentSort === 'roll') {
-            return parseInt(a.roll_number) - parseInt(b.roll_number);
+            return (parseInt(a.roll_number) || 0) - (parseInt(b.roll_number) || 0);
         } else {
-            if (a.major !== b.major) return a.major.localeCompare(b.major);
+            if (a.major !== b.major) return (a.major || '').localeCompare(b.major || '');
             if (a.year !== b.year) return yearOrder.indexOf(a.year) - yearOrder.indexOf(b.year);
-            return parseInt(a.roll_number) - parseInt(b.roll_number);
+            return (parseInt(a.roll_number) || 0) - (parseInt(b.roll_number) || 0);
         }
     });
   };
@@ -411,7 +414,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                     </div>
                 );
             })}
-            {sortedCandidates.length === 0 && <div className="text-slate-400 text-sm text-center py-4">No candidates.</div>}
+            {sortedCandidates.length === 0 && <div className="text-slate-400 text-sm text-center py-4">No candidates available.</div>}
             </div>
         </div>
       );
@@ -794,7 +797,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                                   )}
                               </th>
                               <th className="px-4 py-3 whitespace-nowrap">No.</th>
-                              <th className="px-4 py-3 whitespace-nowrap">Roll No</th>
+                              <th className="px-4 py-3 whitespace-nowrap">Roll / ID</th>
                               <th className="px-4 py-3 whitespace-nowrap">Name</th>
                               <th className="px-4 py-3 whitespace-nowrap">Class</th>
                               <th className="px-4 py-3 whitespace-nowrap">Status</th>

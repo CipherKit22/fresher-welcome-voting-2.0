@@ -28,7 +28,7 @@ const Ballot: React.FC<BallotProps> = ({ onSubmit }) => {
       const timeStr = await fetchEventStartTime();
       setTargetTime(new Date(timeStr).getTime());
 
-      // 2. Get Candidates
+      // 2. Get Candidates (Robust fetch)
       const data = await fetchCandidates();
       setCandidates(data);
       setLoading(false);

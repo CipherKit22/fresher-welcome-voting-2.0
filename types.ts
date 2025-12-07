@@ -7,7 +7,8 @@ export enum Year {
   Y4S2 = "4th year 2nd sem",
   Y5 = "5th year",
   Y6 = "6th year",
-  Master = "Master"
+  Master = "Master",
+  Staff = "Staff" // Added for Teachers
 }
 
 export enum Major {
@@ -28,8 +29,9 @@ export enum AdminRole {
 export interface StudentInfo {
   id?: string; // Database UUID
   name?: string;
-  year: Year;
-  major: Major;
+  type?: 'Student' | 'Teacher'; // Added type
+  year: Year | string;
+  major: Major | string;
   rollNumber: string;
   hasVoted?: boolean;
 }
@@ -38,7 +40,7 @@ export interface Candidate {
   id: string;
   name: string;
   major: Major;
-  year?: string; // Added Year for filtering
+  year?: string; 
   gender: 'Male' | 'Female';
   image: string;
 }

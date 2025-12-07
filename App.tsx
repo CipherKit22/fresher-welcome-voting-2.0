@@ -100,7 +100,7 @@ const App: React.FC = () => {
             {currentStudent && view === 'student-voting' && (
               <div className="flex items-center gap-4">
                 <div className="text-right hidden sm:block">
-                  <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Student</div>
+                  <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{currentStudent.type || 'Student'}</div>
                   <div className="text-sm font-bold text-slate-800 uppercase tracking-wider">
                     {currentStudent.name}
                   </div>

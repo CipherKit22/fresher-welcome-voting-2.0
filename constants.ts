@@ -78,6 +78,17 @@ export const STUDENT_DATABASE: Record<string, string> = {
   // Add more sample data here if needed
 };
 
+// Mock Teachers Database
+export const MOCK_TEACHERS: Record<Major, string[]> = {
+  [Major.Civil]: ["Dr. Kyaw Kyaw", "U Ba Hla", "Daw Nu Nu"],
+  [Major.Archi]: ["Dr. Su Su", "U Hla Maung", "Daw Aye Aye"],
+  [Major.CEIT]: ["Dr. Thida", "U Aung Myo", "Daw Hlaing", "U Thiha"],
+  [Major.EP]: ["Dr. Soe Soe", "U Mya", "Daw Phyu"],
+  [Major.EC]: ["Dr. Win Win", "U Ko Ko", "Daw Ni Ni"],
+  [Major.Mechanical]: ["Dr. Tun Tun", "U Bo Bo", "Daw Khin"],
+  [Major.MC]: ["Dr. Naing", "U Myo", "Daw Sandar"]
+};
+
 // Fallback time if DB fetch fails
 export const DEFAULT_EVENT_TIME = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
