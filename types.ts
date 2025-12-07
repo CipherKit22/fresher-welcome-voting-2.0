@@ -39,6 +39,7 @@ export interface StudentInfo {
   major: Major | string;
   rollNumber: string;
   hasVoted?: boolean;
+  passcode?: string;
 }
 
 export interface Candidate {
