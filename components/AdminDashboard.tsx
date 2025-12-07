@@ -72,6 +72,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   // Modal States
   const [deleteModal, setDeleteModal] = useState<{ type: 'candidate' | 'student'; id: string; name: string } | null>(null);
   const [voteDetailModal, setVoteDetailModal] = useState<{ name: string; category: string; count: number; percentage: string; totalStudents: number } | null>(null);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [resetConfirmationText, setResetConfirmationText] = useState('');
   
   // Toast State
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -89,7 +91,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   // Initial Data Load
   useEffect(() => {
     loadData();
-    const interval = setInterval(loadResultsOnly, 5000); 
+    // Optimized polling interval: 10s instead of 5s to reduce load
+    const interval = setInterval(loadResultsOnly, 10000); 
     return () => clearInterval(interval);
   }, []);
 
@@ -148,8 +151,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
     }
   };
 
-  const handleResetVotes = async () => {
-    if (!window.confirm("WARNING: This will delete ALL votes and reset everyone's voting status. This action cannot be undone. Are you sure?")) {
+  const initiateResetVotes = () => {
+    setResetConfirmationText('');
+    setShowResetConfirm(true);
+  };
+
+  const handleConfirmResetVotes = async () => {
+    if (resetConfirmationText !== 'CONFIRM RESET') {
+      showToast('Incorrect confirmation text', 'error');
       return;
     }
     
@@ -158,7 +167,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
       await resetAllVotes();
       await loadResultsOnly();
       await loadStudents(); 
-      showToast("All votes have been reset.");
+      showToast("All votes have been reset successfully.");
+      setShowResetConfirm(false);
     } catch (e) {
       showToast("Failed to reset votes.", 'error');
     } finally {
@@ -414,8 +424,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
 
       {/* --- DELETE MODAL --- */}
       {deleteModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-          <div className="bg-white max-w-sm w-full p-6 rounded-xl shadow-2xl border border-slate-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-fadeIn">
+          <div className="bg-white max-w-sm w-full p-6 rounded-xl shadow-2xl border border-slate-200 transform transition-all scale-100">
             <h3 className="text-red-600 font-bold text-lg mb-2">Confirm Deletion</h3>
             <p className="text-slate-600 text-sm mb-6">
               Are you sure you want to remove <span className="text-slate-900 font-bold">{deleteModal.name}</span>? This cannot be undone.
@@ -433,6 +443,55 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                 className="flex-1 bg-red-600 text-white py-2 rounded-lg hover:bg-red-700 font-bold text-xs flex justify-center items-center gap-2"
               >
                 {isProcessingDelete ? <Spinner /> : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- RESET VOTES CONFIRMATION MODAL --- */}
+      {showResetConfirm && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-red-900/80 backdrop-blur-md p-4 animate-fadeIn">
+          <div className="bg-white max-w-md w-full p-8 rounded-xl shadow-2xl border-2 border-red-500 relative overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-1 bg-red-500 animate-pulse"></div>
+            
+            <div className="flex flex-col items-center text-center mb-6">
+                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4 text-red-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                </div>
+                <h3 className="text-red-600 font-black text-2xl uppercase tracking-widest font-tech">Danger Zone</h3>
+                <p className="text-slate-600 font-bold mt-2">You are about to delete ALL votes.</p>
+                <p className="text-slate-500 text-sm mt-1">This action cannot be undone. All student voting records will be reset to 'Pending'.</p>
+            </div>
+
+            <div className="mb-6">
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 text-center">
+                    Type <span className="text-red-600 select-none">CONFIRM RESET</span> below
+                </label>
+                <input 
+                    type="text" 
+                    value={resetConfirmationText}
+                    onChange={(e) => setResetConfirmationText(e.target.value)}
+                    className="w-full text-center bg-red-50 border border-red-200 text-red-900 font-bold px-4 py-3 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none uppercase tracking-widest placeholder-red-200"
+                    placeholder="CONFIRM RESET"
+                />
+            </div>
+
+            <div className="flex gap-4">
+              <button 
+                onClick={() => { setShowResetConfirm(false); setResetConfirmationText(''); }}
+                className="flex-1 bg-slate-200 text-slate-600 py-3 rounded-lg hover:bg-slate-300 font-bold text-xs uppercase tracking-widest transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleConfirmResetVotes}
+                disabled={isResettingVotes || resetConfirmationText !== 'CONFIRM RESET'}
+                className="flex-1 bg-red-600 disabled:bg-red-300 text-white py-3 rounded-lg hover:bg-red-700 font-bold text-xs uppercase tracking-widest flex justify-center items-center gap-2 shadow-lg shadow-red-200 transition-all"
+              >
+                {isResettingVotes ? <Spinner /> : 'Reset Everything'}
               </button>
             </div>
           </div>
@@ -525,9 +584,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                  <div className="flex items-center gap-4">
                      {adminRole === AdminRole.SuperAdmin && (
                        <button
-                         onClick={handleResetVotes}
+                         onClick={initiateResetVotes}
                          disabled={isResettingVotes}
-                         className="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-2"
+                         className="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-colors"
                        >
                          {isResettingVotes ? <Spinner /> : 'Reset Votes'}
                        </button>
@@ -565,7 +624,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
             <div className="lg:col-span-2 grid sm:grid-cols-2 gap-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
                 {candidates.map(candidate => (
                 <div key={candidate.id} className="glass-panel bg-white p-3 flex gap-4 items-center rounded-lg group border border-slate-200">
-                    <img src={candidate.image} alt={candidate.name} className="w-12 h-12 object-cover rounded-md" />
+                    <img src={candidate.image} alt={candidate.name} loading="lazy" decoding="async" className="w-12 h-12 object-cover rounded-md" />
                     <div className="flex-1">
                       <h4 className="text-slate-800 font-bold text-sm">{candidate.name}</h4>
                       <p className="text-slate-400 text-[10px] font-bold uppercase">{candidate.major} • {candidate.gender}</p>

@@ -22,7 +22,7 @@ const App: React.FC = () => {
     setTimeout(() => {
       setView(newView);
       setIsPageLoading(false);
-    }, 600); // 600ms transition for smooth feel
+    }, 300); // Reduced from 600ms for snappier feel
   };
 
   const handleLogin = (student: StudentInfo) => {
@@ -83,7 +83,7 @@ const App: React.FC = () => {
               onClick={() => changeView('student-login')}
             >
               <img 
-                  src="https://upload.wikimedia.org/wikipedia/en/9/9c/Technological_University_%28Hmawbi%29_Logo.png" 
+                  src="https://hbtu.edu.mm/img/Hmawbi-logo.png" 
                   alt="TU Hmawbi Logo" 
                   className="h-12 w-auto object-contain transition-transform group-hover:scale-105"
               />

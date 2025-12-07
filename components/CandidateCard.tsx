@@ -45,6 +45,7 @@ const CandidateCard: React.FC<CandidateCardProps> = ({
             src={candidate.image} 
             alt={candidate.name} 
             loading="lazy"
+            decoding="async"
             className={`w-full h-full object-cover transition-all duration-500 ${isSelected ? 'scale-105 saturate-125' : 'grayscale-[0.1] group-hover:grayscale-0'}`}
           />
           

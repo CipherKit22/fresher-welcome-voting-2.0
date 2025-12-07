@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Major, Year, StudentInfo } from '../types';
 import { verifyStudent } from '../services/supabaseService';
@@ -17,6 +16,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, onAdminClick }) => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [verifiedStudent, setVerifiedStudent] = useState<StudentInfo | null>(null);
+  const [showTutorial, setShowTutorial] = useState(false);
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -81,9 +81,22 @@ const Login: React.FC<LoginProps> = ({ onLogin, onAdminClick }) => {
   return (
     <div className="w-full max-w-md flex flex-col items-center">
       <div className="w-full glass-panel-textured p-8 shadow-2xl relative overflow-hidden rounded-2xl">
+        
+        {/* Help Button */}
+        <button 
+          onClick={() => setShowTutorial(true)}
+          className="absolute top-4 right-4 text-cyan-600 hover:bg-cyan-50 hover:text-cyan-700 transition-all p-2 z-20 rounded-full"
+          title="Login Guide"
+          type="button"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
+          </svg>
+        </button>
+
         <div className="text-center mb-8 relative z-10 flex flex-col items-center">
           <img 
-            src="https://upload.wikimedia.org/wikipedia/en/9/9c/Technological_University_%28Hmawbi%29_Logo.png"
+            src="https://hbtu.edu.mm/img/Hmawbi-logo.png"
             alt="TU Hmawbi Logo"
             className="w-20 h-24 object-contain mb-4 drop-shadow-md"
           />
@@ -187,6 +200,82 @@ const Login: React.FC<LoginProps> = ({ onLogin, onAdminClick }) => {
             {loading ? 'Checking...' : 'Login'}
           </button>
         </form>
+
+        {/* Tutorial Overlay */}
+        {showTutorial && (
+          <div className="absolute inset-0 z-30 bg-white/95 backdrop-blur-md flex flex-col items-center justify-center animate-fadeIn overflow-hidden rounded-2xl">
+            <div className="w-full h-full p-6 overflow-y-auto custom-scrollbar flex flex-col items-center">
+                
+                <h3 className="text-2xl font-tech text-slate-800 mb-6 uppercase tracking-widest shrink-0 mt-2">Login Guide</h3>
+                
+                <div className="space-y-6 w-full max-w-sm text-left pb-4">
+                  <div className="flex gap-4 items-start">
+                    <div className="w-8 h-8 rounded-full bg-cyan-100 text-cyan-600 flex items-center justify-center font-bold shrink-0 text-sm border border-cyan-200">1</div>
+                    <div>
+                        <h4 className="font-bold text-slate-700 text-xs uppercase tracking-wider">Select Class</h4>
+                        <p className="text-xs text-slate-500 mt-1 leading-relaxed">Choose your <span className="text-cyan-600 font-bold">Year</span> and <span className="text-cyan-600 font-bold">Major</span>.</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex gap-4 items-start">
+                    <div className="w-8 h-8 rounded-full bg-cyan-100 text-cyan-600 flex items-center justify-center font-bold shrink-0 text-sm border border-cyan-200">2</div>
+                    <div>
+                        <h4 className="font-bold text-slate-700 text-xs uppercase tracking-wider">Roll Number</h4>
+                        <p className="text-xs text-slate-500 mt-1 leading-relaxed">Enter <span className="underline">only the number</span> (e.g., for "EC-5", type "5").</p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-4 items-start">
+                    <div className="w-8 h-8 rounded-full bg-cyan-100 text-cyan-600 flex items-center justify-center font-bold shrink-0 text-sm border border-cyan-200">3</div>
+                    <div>
+                        <h4 className="font-bold text-slate-700 text-xs uppercase tracking-wider">Passcode</h4>
+                        <p className="text-xs text-slate-500 mt-1 leading-relaxed">Enter your class's <span className="text-cyan-600 font-bold">Fruit Code</span>.</p>
+                    </div>
+                  </div>
+
+                  {/* Video Embed Section */}
+                  <div className="mt-4 pt-4 border-t border-slate-200 w-full">
+                    <h4 className="font-bold text-slate-700 text-xs uppercase tracking-wider mb-3 flex items-center gap-2">
+                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-red-500" viewBox="0 0 20 20" fill="currentColor">
+                         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+                       </svg>
+                       Watch Demo
+                    </h4>
+                    <div className="w-full aspect-video bg-slate-900 rounded-lg overflow-hidden shadow-lg border border-slate-300 relative group">
+                        {/* Demo video placeholder - Replace src with actual tutorial video */}
+                        <iframe 
+                            src="https://www.youtube.com/embed/dQw4w9WgXcQ?controls=1&modestbranding=1&rel=0" 
+                            title="Login Tutorial"
+                            className="w-full h-full opacity-90 group-hover:opacity-100 transition-opacity"
+                            frameBorder="0"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowFullScreen
+                        ></iframe>
+                    </div>
+                     <div className="text-center mt-3">
+                        <a 
+                            href="https://t.me/+bsj588-wucYwNjll" 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="inline-flex items-center gap-1 text-[10px] font-bold text-cyan-600 uppercase tracking-widest hover:text-cyan-800 transition-colors border-b border-transparent hover:border-cyan-600"
+                        >
+                            Need more help? Join Telegram
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                        </a>
+                    </div>
+                  </div>
+                </div>
+
+                <button 
+                  onClick={() => setShowTutorial(false)}
+                  className="mt-4 bg-slate-800 text-white px-10 py-3 rounded-lg font-bold uppercase text-xs tracking-widest hover:bg-slate-700 transition-all shadow-lg shrink-0 w-full"
+                >
+                  Close Guide
+                </button>
+            </div>
+          </div>
+        )}
+
       </div>
 
       <button 
