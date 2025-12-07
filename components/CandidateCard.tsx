@@ -7,15 +7,13 @@ interface CandidateCardProps {
   isSelected: boolean;
   isDisabled: boolean;
   onSelect: (id: string) => void;
-  roleLabel: string;
 }
 
 const CandidateCard: React.FC<CandidateCardProps> = ({ 
   candidate, 
   isSelected, 
   isDisabled, 
-  onSelect,
-  roleLabel
+  onSelect
 }) => {
   return (
     <div 
@@ -31,7 +29,7 @@ const CandidateCard: React.FC<CandidateCardProps> = ({
       <div className={`
         relative overflow-hidden bg-white rounded-xl transition-all duration-300
         ${isSelected 
-          ? 'ring-4 ring-cyan-500 shadow-xl shadow-cyan-100' 
+          ? 'ring-4 ring-cyan-500 shadow-xl shadow-cyan-100 transform scale-[1.02]' 
           : 'border border-slate-200 hover:border-cyan-300 hover:shadow-lg'
         }
       `}>
@@ -65,7 +63,7 @@ const CandidateCard: React.FC<CandidateCardProps> = ({
 
         {isSelected && (
           <div className="bg-cyan-600 text-white text-center text-xs font-bold py-2 font-tech uppercase tracking-widest">
-            {roleLabel} SELECTED
+            SELECTED
           </div>
         )}
       </div>

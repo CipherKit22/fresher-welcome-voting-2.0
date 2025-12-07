@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Candidate, Major, VotingRole, AdminRole, Year } from '../types';
+import { Candidate, Major, AdminRole, Year } from '../types';
 import { fetchVoteResults, fetchCandidates, addCandidate, deleteCandidate, fetchStudents, addStudent, deleteStudent, fetchEventStartTime, updateEventStartTime, fetchTotalStudentCount, updateStudentVoteStatus, bulkDeleteStudents, bulkUpdateStudentStatus, resetAllVotes } from '../services/supabaseService';
 
 interface AdminDashboardProps {
@@ -42,10 +42,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [students, setStudents] = useState<any[]>([]);
   const [votes, setVotes] = useState<Record<string, Record<string, number>>>({
-    [VotingRole.King]: {},
-    [VotingRole.Queen]: {},
-    [VotingRole.Prince]: {},
-    [VotingRole.Princess]: {}
+    Male: {},
+    Female: {}
   });
   const [totalVotes, setTotalVotes] = useState(0);
   const [totalStudentCount, setTotalStudentCount] = useState(0);
@@ -73,7 +71,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
 
   // Modal States
   const [deleteModal, setDeleteModal] = useState<{ type: 'candidate' | 'student'; id: string; name: string } | null>(null);
-  const [voteDetailModal, setVoteDetailModal] = useState<{ name: string; role: string; count: number; percentage: string; totalStudents: number } | null>(null);
+  const [voteDetailModal, setVoteDetailModal] = useState<{ name: string; category: string; count: number; percentage: string; totalStudents: number } | null>(null);
   
   // Toast State
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -132,7 +130,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   const loadEventTime = async () => {
     const time = await fetchEventStartTime();
     const date = new Date(time);
-    // Format specifically for datetime-local input (YYYY-MM-DDTHH:mm)
     const formatted = date.toISOString().slice(0, 16);
     setEventStartTime(formatted);
   };
@@ -160,26 +157,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
     try {
       await resetAllVotes();
       await loadResultsOnly();
-      await loadStudents(); // Reload students to reflect status reset
+      await loadStudents(); 
       showToast("All votes have been reset.");
     } catch (e) {
       showToast("Failed to reset votes.", 'error');
     } finally {
       setIsResettingVotes(false);
     }
-  };
-
-  const getWinner = (role: string) => {
-    const roleCandidates = candidates.filter(c => 
-      (role === VotingRole.King || role === VotingRole.Prince) ? c.gender === 'Male' : c.gender === 'Female'
-    );
-    if (roleCandidates.length === 0) return null;
-    
-    return roleCandidates.reduce((prev, current) => {
-      const prevVotes = votes[role]?.[prev.id] || 0;
-      const currVotes = votes[role]?.[current.id] || 0;
-      return prevVotes > currVotes ? prev : current;
-    });
   };
 
   const handleAddCandidate = async (e: React.FormEvent) => {
@@ -257,7 +241,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
     if (adminRole !== AdminRole.SuperAdmin) return;
     try {
       await updateStudentVoteStatus(id, hasVoted);
-      // Optimistic update locally or reload
       await loadStudents();
       showToast('Status updated');
     } catch (e) {
@@ -265,7 +248,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
     }
   };
 
-  // Bulk Actions
   const toggleStudentSelection = (id: string) => {
     const newSet = new Set(selectedStudentIds);
     if (newSet.has(id)) newSet.delete(id);
@@ -275,12 +257,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
 
   const toggleSelectAll = (filteredIds: string[]) => {
     if (filteredIds.every(id => selectedStudentIds.has(id))) {
-      // Deselect all visible
       const newSet = new Set(selectedStudentIds);
       filteredIds.forEach(id => newSet.delete(id));
       setSelectedStudentIds(newSet);
     } else {
-      // Select all visible
       const newSet = new Set(selectedStudentIds);
       filteredIds.forEach(id => newSet.add(id));
       setSelectedStudentIds(newSet);
@@ -322,7 +302,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
 
   const getFilteredStudents = () => {
     const yearOrder = Object.values(Year);
-    
     const filtered = students.filter(s => {
       const matchSearch = s.name.toLowerCase().includes(studentSearch.toLowerCase()) || 
                           s.roll_number.toLowerCase().includes(studentSearch.toLowerCase());
@@ -333,14 +312,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
       return matchSearch && matchYear && matchMajor && matchStatus;
     });
 
-    // Sort Logic
     return filtered.sort((a, b) => {
         if (studentSort === 'name') {
             return a.name.localeCompare(b.name);
         } else if (studentSort === 'roll') {
             return parseInt(a.roll_number) - parseInt(b.roll_number);
         } else {
-            // Default: Major -> Year -> Roll No
             if (a.major !== b.major) return a.major.localeCompare(b.major);
             if (a.year !== b.year) return yearOrder.indexOf(a.year) - yearOrder.indexOf(b.year);
             return parseInt(a.roll_number) - parseInt(b.roll_number);
@@ -350,6 +327,85 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
 
   const displayedStudents = getFilteredStudents();
   const allDisplayedSelected = displayedStudents.length > 0 && displayedStudents.every(s => selectedStudentIds.has(s.id));
+
+  // Render logic for results
+  const renderGenderResults = (gender: 'Male' | 'Female') => {
+      const genderCandidates = candidates.filter(c => c.gender === gender);
+      const categoryLabel = gender === 'Male' ? 'BOYS' : 'GIRLS';
+      const titles = gender === 'Male' ? ['KING', 'PRINCE'] : ['QUEEN', 'PRINCESS'];
+      const themeColor = gender === 'Male' ? 'cyan' : 'pink';
+
+      // Sort by votes
+      const sortedCandidates = [...genderCandidates].sort((a, b) => {
+          const votesA = votes[gender]?.[a.id] || 0;
+          const votesB = votes[gender]?.[b.id] || 0;
+          if (resultSort === 'votes') return votesB - votesA;
+          return a.name.localeCompare(b.name);
+      });
+
+      return (
+        <div className="glass-panel p-6 rounded-xl border border-slate-200 bg-white">
+            <div className={`flex justify-between items-center mb-6 border-b border-${themeColor}-100 pb-3`}>
+                <h3 className={`text-lg font-tech uppercase tracking-wider text-${themeColor}-600`}>
+                    {categoryLabel} RESULTS
+                </h3>
+            </div>
+            
+            <div className="space-y-5">
+            {sortedCandidates.map((candidate, index) => {
+                const voteCount = votes[gender]?.[candidate.id] || 0;
+                const totalBase = totalStudentCount > 0 ? totalStudentCount : 1;
+                const percentage = ((voteCount / totalBase) * 100).toFixed(1);
+                
+                // Determine Title (Only if sorted by votes and has votes)
+                let title = null;
+                if (resultSort === 'votes' && voteCount > 0) {
+                   if (index === 0) title = titles[0]; // Winner
+                   if (index === 1) title = titles[1]; // Runner-up
+                }
+
+                const barWidth = totalStudentCount > 0 ? (voteCount / totalStudentCount) * 100 : 0;
+                
+                return (
+                    <div key={candidate.id} className="relative group">
+                    <div className="flex justify-between items-end mb-1.5">
+                        <div className="flex items-center gap-2">
+                             <span className={`text-sm font-bold uppercase ${title ? `text-${themeColor}-700` : 'text-slate-600'}`}>
+                                {candidate.name}
+                             </span>
+                             {title && (
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded text-white ${index === 0 ? 'bg-yellow-500 shadow-md' : `bg-${themeColor}-500 opacity-80`}`}>
+                                   {title}
+                                </span>
+                             )}
+                        </div>
+                        <span className="text-slate-400 text-xs font-bold uppercase tracking-wide">
+                            {voteCount} <span className="text-[10px] opacity-60">/ {totalStudentCount}</span>
+                        </span>
+                    </div>
+                    <div 
+                        className="w-full h-3 bg-slate-100 rounded-full overflow-hidden cursor-pointer border border-slate-200 shadow-inner"
+                        onClick={() => setVoteDetailModal({ 
+                            name: candidate.name, 
+                            category: categoryLabel, 
+                            count: voteCount, 
+                            percentage: percentage,
+                            totalStudents: totalStudentCount
+                        })}
+                    >
+                        <div 
+                            className={`h-full rounded-full transition-all duration-1000 ease-out progress-striped ${index === 0 && voteCount > 0 ? 'bg-yellow-400' : `bg-${themeColor}-500`}`} 
+                            style={{ width: `${Math.max(barWidth, 0.5)}%` }}
+                        ></div>
+                    </div>
+                    </div>
+                );
+            })}
+            {sortedCandidates.length === 0 && <div className="text-slate-400 text-sm text-center py-4">No candidates.</div>}
+            </div>
+        </div>
+      );
+  };
 
   return (
     <div className="w-full max-w-6xl mx-auto p-4 animate-fadeIn relative pb-20">
@@ -389,7 +445,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
           <div className="bg-white max-w-sm w-full p-6 rounded-xl shadow-2xl border border-slate-200" onClick={e => e.stopPropagation()}>
             <div className="text-center">
               <h3 className="text-slate-800 text-2xl font-bold font-tech uppercase mb-1">{voteDetailModal.name}</h3>
-              <p className="text-cyan-600 text-xs font-bold uppercase tracking-widest mb-6">{voteDetailModal.role}</p>
+              <p className="text-cyan-600 text-xs font-bold uppercase tracking-widest mb-6">{voteDetailModal.category}</p>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-slate-50 p-4 rounded-lg border border-slate-100">
@@ -495,77 +551,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                  </div>
               </div>
 
-              {[VotingRole.King, VotingRole.Queen, VotingRole.Prince, VotingRole.Princess].map(role => {
-                  const roleCandidates = candidates.filter(c => 
-                    (role === VotingRole.King || role === VotingRole.Prince) ? c.gender === 'Male' : c.gender === 'Female'
-                  );
-                  const winner = getWinner(role);
-                  const winnerVotes = winner ? (votes[role]?.[winner.id] || 0) : 0;
+              <div className="grid md:grid-cols-2 gap-8">
+                  {renderGenderResults('Male')}
+                  {renderGenderResults('Female')}
+              </div>
 
-                  return (
-                  <div key={role} className="glass-panel p-6 rounded-xl border border-slate-200 bg-white">
-                      <div className="flex justify-between items-center mb-6 border-b border-slate-100 pb-3">
-                          <h3 className="text-lg font-tech text-slate-800 uppercase tracking-wider">
-                              {role}
-                          </h3>
-                          {winner && winnerVotes > 0 && (
-                              <div className="flex items-center gap-2 bg-yellow-50 px-3 py-1 rounded-full border border-yellow-200">
-                                  <span className="text-yellow-600 font-bold text-[10px] tracking-wider uppercase">
-                                  Leading: {winner.name}
-                                  </span>
-                              </div>
-                          )}
-                      </div>
-                      
-                      <div className="space-y-4">
-                      {roleCandidates
-                          .sort((a, b) => {
-                            const votesA = votes[role]?.[a.id] || 0;
-                            const votesB = votes[role]?.[b.id] || 0;
-                            if (resultSort === 'votes') return votesB - votesA;
-                            return a.name.localeCompare(b.name);
-                          })
-                          .map(candidate => {
-                          const voteCount = votes[role]?.[candidate.id] || 0;
-                          const totalBase = totalStudentCount > 0 ? totalStudentCount : 1;
-                          const percentage = ((voteCount / totalBase) * 100).toFixed(1);
-                          
-                          const isLeader = winner?.id === candidate.id && voteCount > 0;
-                          const barWidth = totalStudentCount > 0 ? (voteCount / totalStudentCount) * 100 : 0;
-                          
-                          return (
-                              <div key={candidate.id} className="relative group">
-                                <div className="flex justify-between text-xs font-bold mb-1.5 uppercase tracking-wide">
-                                    <span className={`${isLeader ? 'text-yellow-600' : 'text-slate-600'}`}>
-                                        {candidate.name}
-                                    </span>
-                                    <span className="text-slate-400">
-                                        {voteCount} / {totalStudentCount} ({percentage}%)
-                                    </span>
-                                </div>
-                                <div 
-                                    className="w-full h-3 bg-slate-100 rounded-full overflow-hidden cursor-pointer border border-slate-200 shadow-inner"
-                                    onClick={() => setVoteDetailModal({ 
-                                        name: candidate.name, 
-                                        role: role, 
-                                        count: voteCount, 
-                                        percentage: percentage,
-                                        totalStudents: totalStudentCount
-                                    })}
-                                    title={`Votes: ${voteCount} / ${totalStudentCount}`}
-                                >
-                                    <div 
-                                      className={`h-full rounded-full transition-all duration-1000 ease-out progress-striped ${isLeader ? 'bg-yellow-400' : 'bg-cyan-500'}`} 
-                                      style={{ width: `${Math.max(barWidth, 0.5)}%` }}
-                                    ></div>
-                                </div>
-                              </div>
-                          );
-                      })}
-                      </div>
-                  </div>
-                  );
-              })}
             </div>
         )}
 

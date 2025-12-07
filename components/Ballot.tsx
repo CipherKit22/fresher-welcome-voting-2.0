@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Candidate, Votes, VotingRole } from '../types';
+import { Candidate, Votes } from '../types';
 import CandidateCard from './CandidateCard';
 import { fetchCandidates, fetchEventStartTime } from '../services/supabaseService';
 
@@ -12,13 +12,10 @@ const Ballot: React.FC<BallotProps> = ({ onSubmit }) => {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [activeSection, setActiveSection] = useState<'Male' | 'Female'>('Male');
   const [votes, setVotes] = useState<Votes>({
-    king: null,
-    queen: null,
-    prince: null,
-    princess: null
+    male: null,
+    female: null
   });
   
-  const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [timeLeft, setTimeLeft] = useState<number>(0);
   const [targetTime, setTargetTime] = useState<number>(0);
   const [isEventStarted, setIsEventStarted] = useState(false);
@@ -65,47 +62,31 @@ const Ballot: React.FC<BallotProps> = ({ onSubmit }) => {
 
   const handleCandidateClick = (candidateId: string) => {
     if (!isEventStarted) return;
-    const candidate = candidates.find(c => c.id === candidateId);
-    if (candidate) {
-      setSelectedCandidate(candidate);
-    }
-  };
-
-  const handleVote = (role: VotingRole) => {
-    if (!selectedCandidate) return;
-    const roleKey = role.toLowerCase() as keyof Votes;
     
     setVotes(prev => {
-      const newVotes = { ...prev };
-      if (selectedCandidate.gender === 'Male') {
-         if (newVotes.king === selectedCandidate.id) newVotes.king = null;
-         if (newVotes.prince === selectedCandidate.id) newVotes.prince = null;
+      if (activeSection === 'Male') {
+        // Toggle if already selected
+        return { ...prev, male: prev.male === candidateId ? null : candidateId };
       } else {
-         if (newVotes.queen === selectedCandidate.id) newVotes.queen = null;
-         if (newVotes.princess === selectedCandidate.id) newVotes.princess = null;
+        return { ...prev, female: prev.female === candidateId ? null : candidateId };
       }
-      newVotes[roleKey] = selectedCandidate.id;
-      return newVotes;
     });
-    setSelectedCandidate(null);
   };
 
-  const getCandidateRoleLabel = (candidateId: string): string => {
-    if (votes.king === candidateId) return "KING";
-    if (votes.queen === candidateId) return "QUEEN";
-    if (votes.prince === candidateId) return "PRINCE";
-    if (votes.princess === candidateId) return "PRINCESS";
-    return "";
-  };
+  const isSelected = (id: string) => votes.male === id || votes.female === id;
+  const allVotesCast = votes.male && votes.female;
 
-  const allVotesCast = votes.king && votes.queen && votes.prince && votes.princess;
+  const getSelectedCandidateName = (id: string | null) => {
+    if (!id) return null;
+    return candidates.find(c => c.id === id)?.name;
+  };
 
   if (loading) {
     return <div className="text-center text-cyan-600 font-tech mt-20 animate-pulse">Loading Candidates...</div>;
   }
 
   return (
-    <div className="w-full max-w-[1400px] mx-auto px-4 py-8 relative pb-32 md:pb-28">
+    <div className="w-full max-w-[1400px] mx-auto px-4 py-8 relative pb-40 md:pb-32">
       
       {!isEventStarted && (
         <div className="mb-8 p-6 md:p-8 glass-panel border border-red-200 rounded-2xl text-center relative overflow-hidden bg-white/80">
@@ -140,140 +121,72 @@ const Ballot: React.FC<BallotProps> = ({ onSubmit }) => {
         </button>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6 animate-fadeIn">
         {candidates.filter(c => c.gender === activeSection).map((candidate) => {
-          const roleLabel = getCandidateRoleLabel(candidate.id);
-          const isSelected = !!roleLabel;
-          
           return (
             <CandidateCard
               key={candidate.id}
               candidate={candidate}
-              isSelected={isSelected}
+              isSelected={isSelected(candidate.id)}
               isDisabled={false} 
               onSelect={handleCandidateClick}
-              roleLabel={roleLabel}
             />
           );
         })}
-        {candidates.length === 0 && (
+        {candidates.filter(c => c.gender === activeSection).length === 0 && (
           <div className="col-span-full text-center text-slate-500 font-tech py-10">No candidates available.</div>
         )}
       </div>
 
-      <div className="fixed bottom-0 left-0 w-full glass-panel border-t border-slate-200 p-4 z-40 bg-white/95 backdrop-blur-xl">
-        <div className="max-w-[1400px] mx-auto flex flex-col md:flex-row justify-between items-center gap-3">
-            <div className="w-full md:w-auto overflow-x-auto flex justify-center md:justify-start">
-                <div className="flex gap-4 text-xs font-mono font-bold whitespace-nowrap px-1">
-                    <span className={votes.king ? "text-cyan-600" : "text-slate-400"}>KING {votes.king ? "✓" : ""}</span>
-                    <span className={votes.prince ? "text-cyan-600" : "text-slate-400"}>PRINCE {votes.prince ? "✓" : ""}</span>
-                    <span className="text-slate-300 hidden md:inline">|</span>
-                    <span className={votes.queen ? "text-pink-600" : "text-slate-400"}>QUEEN {votes.queen ? "✓" : ""}</span>
-                    <span className={votes.princess ? "text-pink-600" : "text-slate-400"}>PRINCESS {votes.princess ? "✓" : ""}</span>
-                </div>
+      {/* Modern Bottom Bar */}
+      <div className="fixed bottom-0 left-0 w-full glass-panel border-t border-slate-200 p-4 z-40 bg-white/95 backdrop-blur-xl shadow-[0_-10px_40px_rgba(0,0,0,0.1)]">
+        <div className="max-w-[1400px] mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+            
+            <div className="flex w-full md:w-auto gap-4 justify-between md:justify-start">
+               {/* Male Selection */}
+               <div className={`flex items-center gap-3 p-2 rounded-lg transition-colors flex-1 md:flex-none ${activeSection === 'Male' ? 'bg-cyan-50 border border-cyan-100' : 'bg-transparent'}`}>
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg border ${votes.male ? 'bg-cyan-600 border-cyan-600 text-white' : 'bg-slate-100 border-slate-200 text-slate-300'}`}>
+                    {votes.male ? '✓' : 'M'}
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Boy Selected</span>
+                    <span className={`text-sm font-bold truncate max-w-[120px] ${votes.male ? 'text-cyan-900' : 'text-slate-300'}`}>
+                      {getSelectedCandidateName(votes.male) || 'None'}
+                    </span>
+                  </div>
+               </div>
+
+               <div className="w-px bg-slate-200 mx-2 hidden md:block"></div>
+
+               {/* Female Selection */}
+               <div className={`flex items-center gap-3 p-2 rounded-lg transition-colors flex-1 md:flex-none ${activeSection === 'Female' ? 'bg-pink-50 border border-pink-100' : 'bg-transparent'}`}>
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg border ${votes.female ? 'bg-pink-600 border-pink-600 text-white' : 'bg-slate-100 border-slate-200 text-slate-300'}`}>
+                    {votes.female ? '✓' : 'F'}
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Girl Selected</span>
+                    <span className={`text-sm font-bold truncate max-w-[120px] ${votes.female ? 'text-pink-900' : 'text-slate-300'}`}>
+                      {getSelectedCandidateName(votes.female) || 'None'}
+                    </span>
+                  </div>
+               </div>
             </div>
+
             <button
                 onClick={() => onSubmit(votes)}
                 disabled={!allVotesCast || !isEventStarted}
                 className={`
-                w-full md:w-auto px-8 py-3 font-tech font-bold text-lg uppercase tracking-widest transition-all rounded-lg shadow-lg
+                w-full md:w-auto px-10 py-4 font-tech font-bold text-xl uppercase tracking-widest transition-all rounded-xl shadow-lg
                 ${allVotesCast && isEventStarted
-                    ? 'bg-green-600 hover:bg-green-500 text-white shadow-green-200' 
+                    ? 'bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white shadow-cyan-200 transform hover:scale-105' 
                     : 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300'
                 }
                 `}
             >
-                {isEventStarted ? (allVotesCast ? 'Submit Votes' : 'Finish Picking') : 'Locked'}
+                {isEventStarted ? (allVotesCast ? 'Submit Votes' : 'Pick Both') : 'Locked'}
             </button>
         </div>
       </div>
-
-      {selectedCandidate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fadeIn" onClick={() => setSelectedCandidate(null)}>
-          <div className="bg-white border border-slate-200 w-full max-w-md relative shadow-2xl rounded-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
-             
-             <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                 <h3 className="font-tech text-slate-800 text-lg uppercase tracking-wider">
-                    Pick a Role
-                 </h3>
-                 <button 
-                    onClick={() => setSelectedCandidate(null)}
-                    className="text-slate-400 hover:text-slate-600 transition-colors"
-                 >
-                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                 </button>
-             </div>
-
-             <div className="p-6">
-                <div className="flex items-center gap-4 mb-6">
-                    <img src={selectedCandidate.image} alt={selectedCandidate.name} className="w-20 h-24 object-cover rounded-lg shadow-md" />
-                    <div>
-                        <div className="text-2xl text-slate-800 font-tech uppercase font-bold leading-none mb-1">{selectedCandidate.name}</div>
-                        <div className="text-cyan-600 text-sm font-bold uppercase tracking-wider">{selectedCandidate.major}</div>
-                    </div>
-                </div>
-
-                <div className="space-y-3">
-                    <p className="text-slate-400 text-xs uppercase tracking-widest font-bold mb-3 text-center">Vote For</p>
-                    
-                    {selectedCandidate.gender === 'Male' ? (
-                        <>
-                            <button
-                                onClick={() => handleVote(VotingRole.King)}
-                                className={`w-full py-4 border-2 font-tech text-lg uppercase tracking-[0.2em] transition-all flex justify-between px-6 items-center rounded-lg
-                                    ${votes.king === selectedCandidate.id 
-                                        ? 'bg-yellow-50 border-yellow-500 text-yellow-600' 
-                                        : 'bg-transparent border-slate-200 text-slate-500 hover:border-yellow-400 hover:text-yellow-600 hover:bg-yellow-50/50'
-                                    }`}
-                            >
-                                <span>Vote as King</span>
-                                {votes.king === selectedCandidate.id && <span className="text-yellow-500">●</span>}
-                            </button>
-                            
-                            <button
-                                onClick={() => handleVote(VotingRole.Prince)}
-                                className={`w-full py-4 border-2 font-tech text-lg uppercase tracking-[0.2em] transition-all flex justify-between px-6 items-center rounded-lg
-                                    ${votes.prince === selectedCandidate.id 
-                                        ? 'bg-cyan-50 border-cyan-500 text-cyan-600' 
-                                        : 'bg-transparent border-slate-200 text-slate-500 hover:border-cyan-400 hover:text-cyan-600 hover:bg-cyan-50/50'
-                                    }`}
-                            >
-                                <span>Vote as Prince</span>
-                                {votes.prince === selectedCandidate.id && <span className="text-cyan-500">●</span>}
-                            </button>
-                        </>
-                    ) : (
-                        <>
-                            <button
-                                onClick={() => handleVote(VotingRole.Queen)}
-                                className={`w-full py-4 border-2 font-tech text-lg uppercase tracking-[0.2em] transition-all flex justify-between px-6 items-center rounded-lg
-                                    ${votes.queen === selectedCandidate.id 
-                                        ? 'bg-purple-50 border-purple-500 text-purple-600' 
-                                        : 'bg-transparent border-slate-200 text-slate-500 hover:border-purple-400 hover:text-purple-600 hover:bg-purple-50/50'
-                                    }`}
-                            >
-                                <span>Vote as Queen</span>
-                                {votes.queen === selectedCandidate.id && <span className="text-purple-500">●</span>}
-                            </button>
-                            
-                            <button
-                                onClick={() => handleVote(VotingRole.Princess)}
-                                className={`w-full py-4 border-2 font-tech text-lg uppercase tracking-[0.2em] transition-all flex justify-between px-6 items-center rounded-lg
-                                    ${votes.princess === selectedCandidate.id 
-                                        ? 'bg-pink-50 border-pink-500 text-pink-600' 
-                                        : 'bg-transparent border-slate-200 text-slate-500 hover:border-pink-400 hover:text-pink-600 hover:bg-pink-50/50'
-                                    }`}
-                            >
-                                <span>Vote as Princess</span>
-                                {votes.princess === selectedCandidate.id && <span className="text-pink-500">●</span>}
-                            </button>
-                        </>
-                    )}
-                </div>
-             </div>
-          </div>
-        </div>
-      )}
 
     </div>
   );

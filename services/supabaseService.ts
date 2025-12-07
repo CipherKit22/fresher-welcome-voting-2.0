@@ -353,14 +353,16 @@ export const submitVote = async (studentId: string, votes: Votes) => {
     }
 
     // 1. Insert Vote
+    // We map 'male' vote to 'king_id' column and 'female' vote to 'queen_id' column
+    // This allows reusing existing database schema while changing the logic
     const { error: voteError } = await supabase
       .from('votes')
       .insert([{
         voter_id: studentId,
-        king_id: votes.king,
-        queen_id: votes.queen,
-        prince_id: votes.prince,
-        princess_id: votes.princess
+        king_id: votes.male, 
+        queen_id: votes.female,
+        prince_id: null,
+        princess_id: null
       }]);
 
     if (voteError) throw voteError;
@@ -378,30 +380,26 @@ export const submitVote = async (studentId: string, votes: Votes) => {
   }
 };
 
-// Updated to return nested object { King: { id: count }, Queen: { id: count } ... }
+// New logic: Returns { male: Record<string, number>, female: Record<string, number> }
+// Aggregating king_id and prince_id into "male", queen_id and princess_id into "female" to support legacy data if any
 export const fetchVoteResults = async () => {
   try {
     if (isMockMode || !supabase) {
       const tally: Record<string, Record<string, number>> = {
-        [VotingRole.King]: {},
-        [VotingRole.Queen]: {},
-        [VotingRole.Prince]: {},
-        [VotingRole.Princess]: {}
+        Male: {},
+        Female: {}
       };
 
       // Deterministic mock stats
       MOCK_CANDIDATES.forEach((c, idx) => {
-        const baseCount = (idx * 13) % 40; // Random-ish number
+        const baseCount = (idx * 13) % 40; 
         if (c.gender === 'Male') {
-          tally[VotingRole.King][c.id] = baseCount + 10;
-          tally[VotingRole.Prince][c.id] = Math.max(0, baseCount - 5);
+          tally.Male[c.id] = baseCount + 10;
         } else {
-          tally[VotingRole.Queen][c.id] = baseCount + 12;
-          tally[VotingRole.Princess][c.id] = Math.max(0, baseCount - 2);
+          tally.Female[c.id] = baseCount + 12;
         }
       });
       
-      // Simulating 50 mock voters for percentages
       return { tally, totalVotes: 50 };
     }
 
@@ -409,27 +407,28 @@ export const fetchVoteResults = async () => {
     
     if (error) {
       console.error("Supabase Error (fetchVoteResults):", error.message);
-      return { tally: { King: {}, Queen: {}, Prince: {}, Princess: {} }, totalVotes: 0 };
+      return { tally: { Male: {}, Female: {} }, totalVotes: 0 };
     }
 
     const tally: Record<string, Record<string, number>> = {
-      [VotingRole.King]: {},
-      [VotingRole.Queen]: {},
-      [VotingRole.Prince]: {},
-      [VotingRole.Princess]: {}
+      Male: {},
+      Female: {}
     };
     
     data.forEach((vote: any) => {
-      if (vote.king_id) tally[VotingRole.King][vote.king_id] = (tally[VotingRole.King][vote.king_id] || 0) + 1;
-      if (vote.queen_id) tally[VotingRole.Queen][vote.queen_id] = (tally[VotingRole.Queen][vote.queen_id] || 0) + 1;
-      if (vote.prince_id) tally[VotingRole.Prince][vote.prince_id] = (tally[VotingRole.Prince][vote.prince_id] || 0) + 1;
-      if (vote.princess_id) tally[VotingRole.Princess][vote.princess_id] = (tally[VotingRole.Princess][vote.princess_id] || 0) + 1;
+      // Aggregate Male Votes
+      if (vote.king_id) tally.Male[vote.king_id] = (tally.Male[vote.king_id] || 0) + 1;
+      if (vote.prince_id) tally.Male[vote.prince_id] = (tally.Male[vote.prince_id] || 0) + 1;
+
+      // Aggregate Female Votes
+      if (vote.queen_id) tally.Female[vote.queen_id] = (tally.Female[vote.queen_id] || 0) + 1;
+      if (vote.princess_id) tally.Female[vote.princess_id] = (tally.Female[vote.princess_id] || 0) + 1;
     });
 
     return { tally, totalVotes: data.length };
   } catch (err) {
     console.error("fetchVoteResults error:", err);
-    return { tally: { King: {}, Queen: {}, Prince: {}, Princess: {} }, totalVotes: 0 };
+    return { tally: { Male: {}, Female: {} }, totalVotes: 0 };
   }
 };
 
@@ -441,9 +440,6 @@ export const resetAllVotes = async () => {
     }
 
     // 1. Delete all votes
-    // Using .neq('id', '00000000-0000-0000-0000-000000000000') to match all UUIDs 
-    // to simulate a 'delete all' without TRUNCATE permissions if needed, 
-    // though typically DELETE w/o WHERE is blocked by safe mode clients unless explicit.
     const { error: deleteError } = await supabase
       .from('votes')
       .delete()

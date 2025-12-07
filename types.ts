@@ -1,3 +1,4 @@
+
 export enum Year {
   Y1 = "1st year",
   Y2 = "2nd year",
@@ -43,10 +44,8 @@ export interface Candidate {
 }
 
 export interface Votes {
-  king: string | null;
-  queen: string | null;
-  prince: string | null;
-  princess: string | null;
+  male: string | null;
+  female: string | null;
 }
 
 export enum VotingRole {
