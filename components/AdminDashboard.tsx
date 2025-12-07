@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { Candidate, Major, AdminRole, Year } from '../types';
-import { fetchVoteResults, fetchCandidates, addCandidate, deleteCandidate, fetchStudents, addStudent, deleteStudent, fetchEventStartTime, updateEventStartTime, fetchTotalStudentCount, updateStudentVoteStatus, bulkDeleteStudents, bulkUpdateStudentStatus, resetAllVotes, addTeacher } from '../services/supabaseService';
+import { fetchVoteResults, fetchCandidates, addCandidate, deleteCandidate, fetchStudents, addStudent, deleteStudent, fetchEventStartTime, updateEventStartTime, fetchTotalStudentCount, updateStudentVoteStatus, bulkDeleteStudents, bulkUpdateStudentStatus, resetAllVotes, addTeacher, bulkUpdateClassPasscode } from '../services/supabaseService';
+import { getClassPasscode } from '../constants';
 
 interface AdminDashboardProps {
   adminRole: AdminRole;
@@ -38,7 +39,7 @@ const Toast: React.FC<{ message: string; type: 'success' | 'error'; onClose: () 
 };
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) => {
-  const [activeTab, setActiveTab] = useState<'results' | 'candidates' | 'students' | 'teachers' | 'settings'>('results');
+  const [activeTab, setActiveTab] = useState<'results' | 'candidates' | 'students' | 'teachers' | 'passcodes' | 'settings'>('results');
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [students, setStudents] = useState<any[]>([]);
   const [votes, setVotes] = useState<Record<string, Record<string, number>>>({
@@ -49,6 +50,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   const [totalStudentCount, setTotalStudentCount] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [eventStartTime, setEventStartTime] = useState('');
+  const [timeRemaining, setTimeRemaining] = useState<string>('');
+  const [isLocked, setIsLocked] = useState(false);
 
   // Granular Loading States
   const [isAddingCandidate, setIsAddingCandidate] = useState(false);
@@ -58,6 +61,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   const [isUpdatingTime, setIsUpdatingTime] = useState(false);
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
   const [isResettingVotes, setIsResettingVotes] = useState(false);
+  const [isUpdatingPasscode, setIsUpdatingPasscode] = useState(false);
 
   // Filters
   const [resultSort, setResultSort] = useState<'votes' | 'name'>('votes');
@@ -67,6 +71,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   const [filterStatus, setFilterStatus] = useState<'All' | 'Voted' | 'Pending'>('All');
   const [studentSort, setStudentSort] = useState<'default' | 'name' | 'roll'>('default');
   
+  // Passcode Management State
+  const [passcodeFilterYear, setPasscodeFilterYear] = useState<string>('All');
+  const [passcodeFilterMajor, setPasscodeFilterMajor] = useState<string>('All');
+  const [editingPasscode, setEditingPasscode] = useState<{year: Year, major: Major, code: string} | null>(null);
+
   // Selection for Bulk Actions
   const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
 
@@ -96,9 +105,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   // Initial Data Load
   useEffect(() => {
     loadData();
-    const interval = setInterval(loadResultsOnly, 10000); 
+    const interval = setInterval(() => {
+        loadResultsOnly();
+        updateStatus();
+    }, 1000); 
     return () => clearInterval(interval);
-  }, []);
+  }, [eventStartTime]);
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
       setToast({ message, type });
@@ -117,6 +129,24 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
       console.error("Critical load error", e);
     }
     setIsLoading(false);
+  };
+
+  const updateStatus = () => {
+    if (!eventStartTime) return;
+    const now = new Date().getTime();
+    const start = new Date(eventStartTime).getTime();
+    const diff = start - now;
+
+    if (diff > 0) {
+        setIsLocked(true);
+        const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
+        const minutes = Math.floor((diff / 1000 / 60) % 60);
+        const seconds = Math.floor((diff / 1000) % 60);
+        setTimeRemaining(`${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
+    } else {
+        setIsLocked(false);
+        setTimeRemaining('');
+    }
   };
 
   const loadResultsOnly = async () => {
@@ -141,16 +171,25 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   const loadEventTime = async () => {
     const time = await fetchEventStartTime();
     const date = new Date(time);
-    const formatted = date.toISOString().slice(0, 16);
-    setEventStartTime(formatted);
+    // Adjust for timezone offset for input type="datetime-local"
+    const offset = date.getTimezoneOffset() * 60000; 
+    const localISOTime = (new Date(date.getTime() - offset)).toISOString().slice(0, 16);
+    
+    setEventStartTime(localISOTime);
+    // Initial status update
+    const now = new Date().getTime();
+    setIsLocked(now < date.getTime());
   };
 
   const handleUpdateEventTime = async () => {
     setIsUpdatingTime(true);
     try {
-      const isoDate = new Date(eventStartTime).toISOString();
+      const date = new Date(eventStartTime);
+      const isoDate = date.toISOString();
       await updateEventStartTime(isoDate);
       showToast('Event time updated successfully!');
+      // Force immediate check
+      loadEventTime();
     } catch (e: any) {
       console.error(e);
       showToast(`Failed to update time`, 'error');
@@ -337,6 +376,48 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
     }
   };
 
+  // Passcode Management Logic
+  const handleUpdatePasscode = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!editingPasscode) return;
+      
+      setIsUpdatingPasscode(true);
+      try {
+          await bulkUpdateClassPasscode(editingPasscode.year, editingPasscode.major, editingPasscode.code);
+          showToast(`Passcode updated for ${editingPasscode.year} ${editingPasscode.major}`);
+          setEditingPasscode(null);
+          // Refresh students to see changes if any are loaded
+          if (adminRole === AdminRole.SuperAdmin) loadStudents();
+      } catch (e) {
+          showToast('Failed to update passcode', 'error');
+      } finally {
+          setIsUpdatingPasscode(false);
+      }
+  };
+
+  const getPasscodeList = () => {
+    const list: {year: Year, major: Major, currentCode: string}[] = [];
+    Object.values(Year).forEach(y => {
+        if (y === Year.Staff) return;
+        Object.values(Major).forEach(m => {
+            if (passcodeFilterYear !== 'All' && passcodeFilterYear !== y) return;
+            if (passcodeFilterMajor !== 'All' && passcodeFilterMajor !== m) return;
+            
+            // Find a student in this class to get the current active passcode
+            // Since bulk update updates all students in the class, any student is a valid sample.
+            // If no students exist, fall back to the default calculation.
+            const sampleStudent = students.find(s => s.year === y && s.major === m && s.type === 'Student');
+            
+            list.push({
+                year: y,
+                major: m,
+                currentCode: sampleStudent ? sampleStudent.passcode : getClassPasscode(y, m)
+            });
+        });
+    });
+    return list;
+  };
+
   const getFilteredStudents = () => {
     // Filter only Students (type != Teacher)
     const yearOrder = Object.values(Year);
@@ -371,6 +452,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   const displayedStudents = getFilteredStudents();
   const displayedTeachers = getFilteredTeachers();
   const allDisplayedSelected = displayedStudents.length > 0 && displayedStudents.every(s => selectedStudentIds.has(s.id));
+  const passcodesList = getPasscodeList();
 
   // Render logic for results
   const renderGenderResults = (gender: 'Male' | 'Female') => {
@@ -455,6 +537,43 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
     <div className="w-full max-w-6xl mx-auto p-4 animate-fadeIn relative pb-20">
       
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+
+      {/* --- EDIT PASSCODE MODAL --- */}
+      {editingPasscode && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-fadeIn">
+            <div className="bg-white max-w-sm w-full p-6 rounded-xl shadow-2xl border border-slate-200">
+                <h3 className="text-lg font-tech text-slate-800 mb-1 uppercase tracking-wider">Update Passcode</h3>
+                <p className="text-xs text-slate-400 font-bold uppercase mb-4">{editingPasscode.year} - {editingPasscode.major}</p>
+                
+                <form onSubmit={handleUpdatePasscode}>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">New Passcode</label>
+                    <input 
+                        autoFocus
+                        type="text" 
+                        value={editingPasscode.code}
+                        onChange={(e) => setEditingPasscode({...editingPasscode, code: e.target.value})}
+                        className="w-full bg-slate-50 border border-slate-300 text-slate-900 px-4 py-3 rounded-lg focus:border-cyan-500 outline-none mb-6 font-mono font-bold tracking-wider"
+                    />
+                    <div className="flex gap-3">
+                        <button 
+                            type="button"
+                            onClick={() => setEditingPasscode(null)}
+                            className="flex-1 bg-slate-100 text-slate-600 py-2 rounded-lg hover:bg-slate-200 font-bold text-xs uppercase"
+                        >
+                            Cancel
+                        </button>
+                        <button 
+                            type="submit"
+                            disabled={isUpdatingPasscode}
+                            className="flex-1 bg-cyan-600 text-white py-2 rounded-lg hover:bg-cyan-700 font-bold text-xs uppercase flex justify-center items-center gap-2"
+                        >
+                            {isUpdatingPasscode ? <Spinner /> : 'Save'}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+      )}
 
       {/* --- DELETE MODAL --- */}
       {deleteModal && (
@@ -558,12 +677,19 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
       )}
 
       {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 glass-panel p-6 rounded-xl gap-4">
-        <div>
-          <h1 className="text-2xl font-tech text-slate-800 uppercase tracking-wider flex items-center gap-3">
-             {adminRole === AdminRole.SuperAdmin ? 'Super Admin' : 'Admin View'}
-             <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-          </h1>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 glass-panel p-6 rounded-xl gap-4 relative">
+        <div className="flex-1">
+          <div className="flex items-center gap-3 flex-wrap">
+              <h1 className="text-2xl font-tech text-slate-800 uppercase tracking-wider flex items-center gap-3">
+                {adminRole === AdminRole.SuperAdmin ? 'Super Admin' : 'Admin View'}
+              </h1>
+              {adminRole === AdminRole.SuperAdmin && (
+                  <div className={`px-3 py-1 rounded border flex items-center gap-2 text-xs font-bold uppercase tracking-widest ${isLocked ? 'bg-red-50 text-red-600 border-red-200' : 'bg-green-50 text-green-600 border-green-200'}`}>
+                      <div className={`w-2 h-2 rounded-full ${isLocked ? 'bg-red-500' : 'bg-green-500'} animate-pulse`}></div>
+                      {isLocked ? `LOCKED (${timeRemaining})` : 'VOTING LIVE'}
+                  </div>
+              )}
+          </div>
           <div className="flex flex-col sm:flex-row gap-2 sm:gap-6 mt-2">
             <p className="text-slate-500 font-medium text-sm">
               Total Votes Cast: <span className="text-slate-900 font-bold">{totalVotes}</span>
@@ -582,8 +708,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
       </div>
 
       {/* Modern Tabs */}
-      <div className="mb-8 p-1 bg-slate-200/50 rounded-xl inline-flex overflow-hidden">
-        {['results', ...(adminRole === AdminRole.SuperAdmin ? ['candidates', 'students', 'teachers', 'settings'] : [])].map((tab) => (
+      <div className="mb-8 p-1 bg-slate-200/50 rounded-xl inline-flex overflow-hidden flex-wrap gap-1">
+        {['results', ...(adminRole === AdminRole.SuperAdmin ? ['candidates', 'students', 'teachers', 'passcodes', 'settings'] : [])].map((tab) => (
             <button
                 key={tab}
                 onClick={() => setActiveTab(tab as any)}
@@ -723,6 +849,64 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                   </button>
                 </form>
             </div>
+            </div>
+        )}
+
+        {/* Manage Passcodes */}
+        {!isLoading && activeTab === 'passcodes' && adminRole === AdminRole.SuperAdmin && (
+            <div className="animate-fadeIn space-y-4">
+                <div className="glass-panel bg-white p-4 rounded-xl flex flex-col sm:flex-row justify-between items-center gap-4 border border-slate-200">
+                    <h4 className="font-bold text-slate-700 text-xs uppercase tracking-wider">Class Passcodes</h4>
+                    
+                    <div className="flex gap-2">
+                         <div className="relative">
+                            <select value={passcodeFilterYear} onChange={e => setPasscodeFilterYear(e.target.value)} className="bg-slate-50 border border-slate-300 text-slate-800 text-xs rounded-lg px-3 py-2 outline-none appearance-none pr-8">
+                                <option value="All">All Years</option>
+                                {Object.values(Year).filter(y => y !== Year.Staff).map(y => <option key={y} value={y}>{y}</option>)}
+                            </select>
+                            <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-slate-500">
+                                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                            </div>
+                        </div>
+                        <div className="relative">
+                            <select value={passcodeFilterMajor} onChange={e => setPasscodeFilterMajor(e.target.value)} className="bg-slate-50 border border-slate-300 text-slate-800 text-xs rounded-lg px-3 py-2 outline-none appearance-none pr-8">
+                                <option value="All">All Majors</option>
+                                {Object.values(Major).map(m => <option key={m} value={m}>{m}</option>)}
+                            </select>
+                            <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-slate-500">
+                                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[600px] overflow-y-auto custom-scrollbar pb-10">
+                    {passcodesList.map((item, idx) => (
+                        <div key={`${item.year}-${item.major}`} className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 hover:shadow-md transition-shadow relative group">
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{item.year}</div>
+                                    <div className="font-bold text-slate-800 text-sm mt-1">{item.major}</div>
+                                </div>
+                                <button 
+                                    onClick={() => setEditingPasscode({ year: item.year, major: item.major, code: item.currentCode })}
+                                    className="text-cyan-600 hover:text-cyan-800 bg-cyan-50 p-2 rounded-lg transition-colors"
+                                >
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                    </svg>
+                                </button>
+                            </div>
+                            <div className="mt-4 pt-4 border-t border-slate-100 flex justify-between items-center">
+                                <span className="text-[10px] text-slate-400 font-bold uppercase">Passcode:</span>
+                                <span className="font-mono font-bold text-slate-600 bg-slate-100 px-2 py-1 rounded text-sm tracking-wider">{item.currentCode}</span>
+                            </div>
+                        </div>
+                    ))}
+                    {passcodesList.length === 0 && (
+                        <div className="col-span-full text-center py-8 text-slate-400 text-sm">No classes found matching filters.</div>
+                    )}
+                </div>
             </div>
         )}
 

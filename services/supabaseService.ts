@@ -1,3 +1,4 @@
+
 import { supabase, isMockMode } from './supabaseClient';
 import { Candidate, StudentInfo, Votes, Major, Year, VotingRole } from '../types';
 import { MOCK_CANDIDATES, STUDENT_DATABASE, getClassPasscode, DEFAULT_EVENT_TIME, MOCK_TEACHERS } from '../constants';
@@ -453,6 +454,28 @@ export const bulkUpdateStudentStatus = async (ids: string[], hasVoted: boolean) 
     console.error("bulkUpdateStudentStatus error:", err);
     throw err;
   }
+};
+
+export const bulkUpdateClassPasscode = async (year: Year, major: Major, newPasscode: string) => {
+    try {
+        if (isMockMode || !supabase) {
+            console.log(`Mock Mode: Passcode for ${year} ${major} updated to ${newPasscode}`);
+            return;
+        }
+
+        const { error } = await supabase
+            .from('students')
+            .update({ passcode: newPasscode })
+            .eq('year', year)
+            .eq('major', major)
+            .eq('type', 'Student');
+            
+        if (error) throw error;
+
+    } catch (err) {
+        console.error("bulkUpdateClassPasscode error:", err);
+        throw err;
+    }
 };
 
 
