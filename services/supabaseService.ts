@@ -1,4 +1,3 @@
-
 import { supabase, isMockMode } from './supabaseClient';
 import { Candidate, StudentInfo, Votes, Major, Year, VotingRole } from '../types';
 import { MOCK_CANDIDATES, STUDENT_DATABASE, getClassPasscode, DEFAULT_EVENT_TIME, MOCK_TEACHERS } from '../constants';
@@ -118,12 +117,10 @@ export const verifyStudent = async (year: Year, major: Major, rollNumber: string
       // Mock Validation Logic
       
       const expectedPasscode = getClassPasscode(year, major);
-      // For mock purposes, accept the default fruit OR anything if "mock"
-      // In production, the DB holds the exact passcode.
+      // For mock purposes, we strictly check against the fruit list, but we give a generic error message
+      // to align with the "random word" user instruction.
       if (passcode.toLowerCase() !== expectedPasscode.toLowerCase()) {
-         // Allow a secret backdoor for testing if needed, but for now stick to fruit code as default
-         // console.log("Hint:", expectedPasscode);
-         return { success: false, message: `Wrong Passcode. Hint: It is a fruit name.` };
+         return { success: false, message: `Wrong Passcode. Please ask your Class Leader (EC).` };
       }
 
       const dbKey = `${year}_${major}_${rollNumber}`;
