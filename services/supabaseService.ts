@@ -118,8 +118,7 @@ export const verifyStudent = async (year: Year, major: Major, rollNumber: string
       // Mock Validation Logic
       
       const expectedPasscode = getClassPasscode(year, major);
-      // For mock purposes, we strictly check against the fruit list, but we give a generic error message
-      // to align with the "random word" user instruction.
+      // For mock purposes, we strictly check against the fruit list
       if (passcode.toLowerCase() !== expectedPasscode.toLowerCase()) {
          return { success: false, message: `Wrong Passcode. Please ask your Class Leader (EC).` };
       }
@@ -200,22 +199,25 @@ export const verifyStudent = async (year: Year, major: Major, rollNumber: string
   }
 };
 
-export const verifyTeacher = async (major: Major, name: string): Promise<{ success: boolean; student?: StudentInfo; message?: string }> => {
+export const verifyTeacher = async (major: Major, name: string, passcode: string): Promise<{ success: boolean; student?: StudentInfo; message?: string }> => {
   if (!name || !major) return { success: false, message: "Incomplete details." };
+  if (!passcode) return { success: false, message: "Passcode required." };
 
   try {
      if (isMockMode || !supabase) {
         // Mock check
         const teachers = MOCK_TEACHERS[major] || [];
-        // Check if name exists in mock data
         const found = teachers.find(t => t.toLowerCase() === name.toLowerCase());
         
         if (found) {
+            // Mock passcode check - accept 'TEACHER' or just ensure it's not empty
+            if (passcode !== 'TEACHER') return { success: false, message: "Wrong Passcode." };
+
             return {
                 success: true,
                 student: {
                 id: `mock-teacher-${major}-${name.replace(/\s+/g, '-').toLowerCase()}`,
-                name: found, // Use matched casing
+                name: found, 
                 type: 'Teacher',
                 year: Year.Staff,
                 major: major,
@@ -239,6 +241,11 @@ export const verifyTeacher = async (major: Major, name: string): Promise<{ succe
 
      if (error || !data) {
          return { success: false, message: "Teacher not found or system error." };
+     }
+
+     // Check Passcode
+     if (data.passcode !== passcode) {
+         return { success: false, message: "Wrong Passcode." };
      }
 
      if (data.has_voted) {
@@ -291,9 +298,9 @@ export const fetchStudents = async () => {
   try {
     if (isMockMode || !supabase) {
       return [
-        { id: 'm1', name: 'Mg Mg', year: Year.Y1, major: Major.Civil, roll_number: '1', has_voted: false, type: 'Student' },
-        { id: 'm2', name: 'Mya Mya', year: Year.Y3, major: Major.CEIT, roll_number: '1', has_voted: true, type: 'Student' },
-        { id: 't1', name: 'Dr. Kyaw', year: Year.Staff, major: Major.Civil, roll_number: 'Staff', has_voted: false, type: 'Teacher' }
+        { id: 'm1', name: 'Mg Mg', year: Year.Y1, major: Major.Civil, roll_number: '1', has_voted: false, type: 'Student', passcode: 'Apple' },
+        { id: 'm2', name: 'Mya Mya', year: Year.Y3, major: Major.CEIT, roll_number: '1', has_voted: true, type: 'Student', passcode: 'Grape' },
+        { id: 't1', name: 'Dr. Kyaw', year: Year.Staff, major: Major.Civil, roll_number: 'Staff', has_voted: false, type: 'Teacher', passcode: 'TEACHER' }
       ];
     }
 
@@ -305,7 +312,7 @@ export const fetchStudents = async () => {
     if (error) {
       console.warn("Supabase Error (fetchStudents), using mock:", error.message);
        return [
-        { id: 'm1', name: 'Mg Mg', year: Year.Y1, major: Major.Civil, roll_number: '1', has_voted: false, type: 'Student' },
+        { id: 'm1', name: 'Mg Mg', year: Year.Y1, major: Major.Civil, roll_number: '1', has_voted: false, type: 'Student', passcode: 'Apple' },
       ];
     }
     return data;
@@ -355,10 +362,10 @@ export const addStudent = async (name: string, year: string, major: string, roll
   }
 };
 
-export const addTeacher = async (name: string, major: string) => {
+export const addTeacher = async (name: string, major: string, passcode: string) => {
     try {
       if (isMockMode || !supabase) {
-         console.log("Mock Mode: Teacher added", { name, major });
+         console.log("Mock Mode: Teacher added", { name, major, passcode });
          if (!MOCK_TEACHERS[major as Major]) MOCK_TEACHERS[major as Major] = [];
          MOCK_TEACHERS[major as Major].push(name);
          return;
@@ -371,7 +378,7 @@ export const addTeacher = async (name: string, major: string) => {
             major, 
             year: Year.Staff, 
             roll_number: 'Staff', 
-            passcode: 'TEACHER', // Placeholder, not used for login
+            passcode: passcode || 'TEACHER', 
             type: 'Teacher', 
             has_voted: false 
         }])
@@ -463,12 +470,15 @@ export const bulkUpdateClassPasscode = async (year: Year, major: Major, newPassc
             return;
         }
 
+        // Determine if we are updating Teachers or Students based on year
+        const type = year === Year.Staff ? 'Teacher' : 'Student';
+
         const { error } = await supabase
             .from('students')
             .update({ passcode: newPasscode })
             .eq('year', year)
             .eq('major', major)
-            .eq('type', 'Student');
+            .eq('type', type);
             
         if (error) throw error;
 

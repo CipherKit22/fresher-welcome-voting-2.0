@@ -62,6 +62,17 @@ export const FRUITS = [
   "Bilberry"     // 55
 ];
 
+// Define Majors available for Students (Engineering only)
+export const STUDENT_MAJORS = [
+  Major.Civil,
+  Major.Archi,
+  Major.CEIT,
+  Major.EP,
+  Major.EC,
+  Major.Mechanical,
+  Major.MC
+];
+
 // Helper to get passcode deterministically
 export const getClassPasscode = (year: Year, major: Major): string => {
   const yearIndex = Object.values(Year).indexOf(year);

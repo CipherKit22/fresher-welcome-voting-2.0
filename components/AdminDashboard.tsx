@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Candidate, Major, AdminRole, Year } from '../types';
 import { fetchVoteResults, fetchCandidates, addCandidate, deleteCandidate, fetchStudents, addStudent, deleteStudent, fetchEventStartTime, updateEventStartTime, fetchTotalStudentCount, updateStudentVoteStatus, bulkDeleteStudents, bulkUpdateStudentStatus, resetAllVotes, addTeacher, bulkUpdateClassPasscode } from '../services/supabaseService';
-import { getClassPasscode } from '../constants';
+import { getClassPasscode, STUDENT_MAJORS } from '../constants';
 
 interface AdminDashboardProps {
   adminRole: AdminRole;
@@ -88,9 +88,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   // Toast State
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
-  // Forms
+  // Candidate Form
   const [newCandName, setNewCandName] = useState('');
+  const [newCandMajor, setNewCandMajor] = useState<Major>(Major.CEIT);
+  const [newCandYear, setNewCandYear] = useState<string>(Year.Y1);
   const [newCandGender, setNewCandGender] = useState<'Male' | 'Female'>('Male');
+
+  // Student Form
   const [newStudName, setNewStudName] = useState('');
   const [newStudYear, setNewStudYear] = useState<Year>(Year.Y1);
   const [newStudMajor, setNewStudMajor] = useState<Major>(Major.Civil);
@@ -101,6 +105,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   // Teacher Form
   const [newTeacherName, setNewTeacherName] = useState('');
   const [newTeacherMajor, setNewTeacherMajor] = useState<Major>(Major.Civil);
+  const [newTeacherPasscode, setNewTeacherPasscode] = useState('');
+  const [showTeacherPasscode, setShowTeacherPasscode] = useState(false);
 
   // Initial Data Load
   useEffect(() => {
@@ -231,8 +237,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
     try {
       await addCandidate({
         name: newCandName,
-        major: Major.CEIT,
-        year: Year.Y1,
+        major: newCandMajor,
+        year: newCandYear,
         gender: newCandGender,
         image: `https://picsum.photos/300/400?random=${Math.floor(Math.random() * 1000)}`
       });
@@ -302,8 +308,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
     e.preventDefault();
     setIsAddingTeacher(true);
     try {
-        await addTeacher(newTeacherName, newTeacherMajor);
+        await addTeacher(newTeacherName, newTeacherMajor, newTeacherPasscode);
         setNewTeacherName('');
+        setNewTeacherPasscode('');
         await loadStudents();
         showToast('Teacher added successfully!');
     } catch (e) {
@@ -398,20 +405,27 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   const getPasscodeList = () => {
     const list: {year: Year, major: Major, currentCode: string}[] = [];
     Object.values(Year).forEach(y => {
-        if (y === Year.Staff) return;
-        Object.values(Major).forEach(m => {
+        // If year is Staff, we show ALL majors. If year is Student (Y1-Y6), we show only STUDENT_MAJORS
+        const majorsForYear = (y === Year.Staff) ? Object.values(Major) : STUDENT_MAJORS;
+
+        majorsForYear.forEach(m => {
             if (passcodeFilterYear !== 'All' && passcodeFilterYear !== y) return;
             if (passcodeFilterMajor !== 'All' && passcodeFilterMajor !== m) return;
             
-            // Find a student in this class to get the current active passcode
-            // Since bulk update updates all students in the class, any student is a valid sample.
-            // If no students exist, fall back to the default calculation.
-            const sampleStudent = students.find(s => s.year === y && s.major === m && s.type === 'Student');
+            // Find a student/teacher in this class to get the current active passcode
+            const type = y === Year.Staff ? 'Teacher' : 'Student';
+            const sample = students.find(s => s.year === y && s.major === m && s.type === type);
             
+            // For students, default from constants, for teachers default is 'TEACHER' if not found
+            let defaultCode = 'TEACHER';
+            if (type === 'Student') {
+                defaultCode = getClassPasscode(y, m);
+            }
+
             list.push({
                 year: y,
                 major: m,
-                currentCode: sampleStudent ? sampleStudent.passcode : getClassPasscode(y, m)
+                currentCode: sample ? sample.passcode : defaultCode
             });
         });
     });
@@ -815,11 +829,39 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                   <div className="grid grid-cols-2 gap-2">
                      <div>
                         <label className="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Major</label>
-                        <input disabled value="CEIT" className="w-full bg-slate-100 border border-slate-200 p-2 text-slate-400 text-sm rounded-lg cursor-not-allowed" />
+                        <div className="relative">
+                            <select 
+                                disabled={isAddingCandidate}
+                                value={newCandMajor} 
+                                onChange={e => setNewCandMajor(e.target.value as Major)} 
+                                className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-xs rounded-lg appearance-none pr-8"
+                            >
+                                {STUDENT_MAJORS.map(m => <option key={m} value={m}>{m}</option>)}
+                            </select>
+                            <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-slate-500">
+                                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </div>
+                        </div>
                      </div>
                      <div>
                         <label className="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Year</label>
-                        <input disabled value="1st Year" className="w-full bg-slate-100 border border-slate-200 p-2 text-slate-400 text-sm rounded-lg cursor-not-allowed" />
+                        <div className="relative">
+                            <select 
+                                disabled={isAddingCandidate}
+                                value={newCandYear} 
+                                onChange={e => setNewCandYear(e.target.value)} 
+                                className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-xs rounded-lg appearance-none pr-8"
+                            >
+                                {Object.values(Year).filter(y => y !== Year.Staff).map(y => <option key={y} value={y}>{y}</option>)}
+                            </select>
+                            <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-slate-500">
+                                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </div>
+                        </div>
                      </div>
                   </div>
                   <div>
@@ -856,13 +898,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
         {!isLoading && activeTab === 'passcodes' && adminRole === AdminRole.SuperAdmin && (
             <div className="animate-fadeIn space-y-4">
                 <div className="glass-panel bg-white p-4 rounded-xl flex flex-col sm:flex-row justify-between items-center gap-4 border border-slate-200">
-                    <h4 className="font-bold text-slate-700 text-xs uppercase tracking-wider">Class Passcodes</h4>
+                    <h4 className="font-bold text-slate-700 text-xs uppercase tracking-wider">Passcodes</h4>
                     
                     <div className="flex gap-2">
                          <div className="relative">
                             <select value={passcodeFilterYear} onChange={e => setPasscodeFilterYear(e.target.value)} className="bg-slate-50 border border-slate-300 text-slate-800 text-xs rounded-lg px-3 py-2 outline-none appearance-none pr-8">
                                 <option value="All">All Years</option>
-                                {Object.values(Year).filter(y => y !== Year.Staff).map(y => <option key={y} value={y}>{y}</option>)}
+                                {Object.values(Year).map(y => <option key={y} value={y}>{y}</option>)}
                             </select>
                             <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-slate-500">
                                 <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
@@ -994,6 +1036,35 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                             </div>
                         </div>
                      </div>
+                     <div>
+                        <label className="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Department Passcode</label>
+                        <div className="relative">
+                            <input 
+                            required 
+                            disabled={isAddingTeacher}
+                            value={newTeacherPasscode} 
+                            onChange={e => setNewTeacherPasscode(e.target.value)} 
+                            type={showTeacherPasscode ? 'text' : 'password'}
+                            className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-sm rounded-lg outline-none focus:border-cyan-500 pr-10" 
+                            />
+                            <button 
+                            type="button" 
+                            onClick={() => setShowTeacherPasscode(!showTeacherPasscode)}
+                            className="absolute inset-y-0 right-0 flex items-center px-2 text-slate-400 hover:text-cyan-600 transition-colors"
+                            >
+                            {showTeacherPasscode ? (
+                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                                </svg>
+                            ) : (
+                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                </svg>
+                            )}
+                            </button>
+                        </div>
+                     </div>
                      
                      <button 
                        disabled={isAddingTeacher}
@@ -1067,7 +1138,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                         <div className="relative">
                             <select value={filterMajor} onChange={e => setFilterMajor(e.target.value)} className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-xs rounded-lg outline-none appearance-none pr-8">
                                 <option value="All">All</option>
-                                {Object.values(Major).map(m => <option key={m} value={m}>{m}</option>)}
+                                {STUDENT_MAJORS.map(m => <option key={m} value={m}>{m}</option>)}
                             </select>
                             <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-slate-500">
                                 <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1081,7 +1152,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                         <div className="relative">
                             <select value={filterYear} onChange={e => setFilterYear(e.target.value)} className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-xs rounded-lg outline-none appearance-none pr-8">
                                 <option value="All">All</option>
-                                {Object.values(Year).map(y => <option key={y} value={y}>{y}</option>)}
+                                {Object.values(Year).filter(y => y !== Year.Staff).map(y => <option key={y} value={y}>{y}</option>)}
                             </select>
                             <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-slate-500">
                                 <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1235,7 +1306,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                                     onChange={e => setNewStudYear(e.target.value as Year)} 
                                     className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-xs rounded-lg appearance-none pr-8"
                                 >
-                                    {Object.values(Year).map(y => <option key={y} value={y}>{y}</option>)}
+                                    {Object.values(Year).filter(y => y !== Year.Staff).map(y => <option key={y} value={y}>{y}</option>)}
                                 </select>
                                 <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-slate-500">
                                     <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1253,7 +1324,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                                     onChange={e => setNewStudMajor(e.target.value as Major)} 
                                     className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-xs rounded-lg appearance-none pr-8"
                                 >
-                                    {Object.values(Major).map(m => <option key={m} value={m}>{m}</option>)}
+                                    {STUDENT_MAJORS.map(m => <option key={m} value={m}>{m}</option>)}
                                 </select>
                                 <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-slate-500">
                                     <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
