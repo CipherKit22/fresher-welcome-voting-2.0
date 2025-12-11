@@ -88,14 +88,17 @@ const Ballot: React.FC<BallotProps> = ({ onSubmit }) => {
   const isSelected = (id: string) => votes.male === id || votes.female === id;
   const allVotesCast = votes.male && votes.female;
 
-  const getSelectedCandidateName = (id: string | null) => {
+  const getSelectedCandidateDetails = (id: string | null) => {
     if (!id) return null;
-    return candidates.find(c => c.id === id)?.name;
+    return candidates.find(c => c.id === id);
   };
 
   if (loading) {
     return <div className="text-center text-cyan-600 font-tech mt-20 animate-pulse">Loading Candidates...</div>;
   }
+
+  const selectedMale = getSelectedCandidateDetails(votes.male);
+  const selectedFemale = getSelectedCandidateDetails(votes.female);
 
   return (
     <div className="w-full max-w-[1400px] mx-auto px-4 py-8 relative pb-40 md:pb-32">
@@ -163,7 +166,7 @@ const Ballot: React.FC<BallotProps> = ({ onSubmit }) => {
                   <div className="flex flex-col">
                     <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Boy Selected</span>
                     <span className={`text-sm font-bold truncate max-w-[120px] ${votes.male ? 'text-cyan-900' : 'text-slate-300'}`}>
-                      {getSelectedCandidateName(votes.male) || 'None'}
+                      {selectedMale ? `No. ${selectedMale.candidateNumber} ${selectedMale.name}` : 'None'}
                     </span>
                   </div>
                </div>
@@ -178,7 +181,7 @@ const Ballot: React.FC<BallotProps> = ({ onSubmit }) => {
                   <div className="flex flex-col">
                     <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Girl Selected</span>
                     <span className={`text-sm font-bold truncate max-w-[120px] ${votes.female ? 'text-pink-900' : 'text-slate-300'}`}>
-                      {getSelectedCandidateName(votes.female) || 'None'}
+                      {selectedFemale ? `No. ${selectedFemale.candidateNumber} ${selectedFemale.name}` : 'None'}
                     </span>
                   </div>
                </div>

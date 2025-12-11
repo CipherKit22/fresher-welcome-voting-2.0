@@ -45,6 +45,7 @@ export interface StudentInfo {
 export interface Candidate {
   id: string;
   name: string;
+  candidateNumber: number;
   major: Major;
   year?: string; 
   gender: 'Male' | 'Female';

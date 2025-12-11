@@ -36,7 +36,10 @@ export const updateEventStartTime = async (isoDate: string) => {
 
     const { error } = await supabase
       .from('app_config')
-      .upsert({ key: 'event_start_time', value: isoDate });
+      .upsert(
+        { key: 'event_start_time', value: isoDate },
+        { onConflict: 'key' }
+      );
 
     if (error) throw error;
   } catch (err) {
@@ -50,7 +53,7 @@ export const updateEventStartTime = async (isoDate: string) => {
 export const fetchCandidates = async (): Promise<Candidate[]> => {
   try {
     if (isMockMode || !supabase) {
-      return MOCK_CANDIDATES;
+      return MOCK_CANDIDATES.sort((a, b) => a.candidateNumber - b.candidateNumber);
     }
 
     const { data, error } = await supabase
@@ -61,7 +64,33 @@ export const fetchCandidates = async (): Promise<Candidate[]> => {
       console.warn('Supabase Error (fetchCandidates):', error.message);
       return [];
     }
-    return data as Candidate[];
+    
+    // Map snake_case from DB to camelCase for frontend
+    // Robustly handle missing candidate_number column by checking name format
+    return data.map((c: any) => {
+        let number = c.candidate_number;
+        let name = c.name;
+
+        // Fallback: If column doesn't exist, try to parse from name "1. Name"
+        if (!number && typeof name === 'string') {
+            const match = name.match(/^(\d+)\.\s+(.*)/);
+            if (match) {
+                number = parseInt(match[1]);
+                name = match[2];
+            }
+        }
+
+        return {
+            id: c.id,
+            name: name,
+            candidateNumber: number || 0,
+            major: c.major,
+            year: c.year,
+            gender: c.gender,
+            image: c.image
+        };
+    }).sort((a: Candidate, b: Candidate) => a.candidateNumber - b.candidateNumber);
+
   } catch (err) {
     console.warn("fetchCandidates connection error:", err);
     return [];
@@ -77,15 +106,32 @@ export const addCandidate = async (candidate: Omit<Candidate, 'id'>) => {
       return [newCand];
     }
 
+    // Workaround for missing 'candidate_number' column:
+    // Store number in name field: "1. John Doe"
+    // valid payload even if schema is old
+    const nameWithNumber = `${candidate.candidateNumber}. ${candidate.name}`;
+
+    const dbPayload = {
+        name: nameWithNumber,
+        // candidate_number: candidate.candidateNumber, // REMOVED to prevent schema error
+        major: candidate.major,
+        year: candidate.year,
+        gender: candidate.gender,
+        image: candidate.image
+    };
+
     const { data, error } = await supabase
       .from('candidates')
-      .insert([candidate])
+      .insert([dbPayload])
       .select();
     
-    if (error) throw error;
+    if (error) {
+        console.error("Supabase Insert Error:", error);
+        throw new Error(error.message);
+    }
     return data;
-  } catch (err) {
-    console.error("addCandidate error:", err);
+  } catch (err: any) {
+    console.error("addCandidate error:", err.message || err);
     throw err;
   }
 };
@@ -290,16 +336,37 @@ export const fetchStudents = async () => {
       return MOCK_STUDENTS;
     }
 
-    const { data, error } = await supabase
-      .from('students')
-      .select('*')
-      .order('created_at', { ascending: false });
-      
-    if (error) {
-      console.warn("Supabase Error (fetchStudents):", error.message);
-      return [];
+    // Implementing pagination to fetch ALL students (overcoming 1000 row limit)
+    let allStudents: any[] = [];
+    let from = 0;
+    const batchSize = 1000;
+    let fetchMore = true;
+
+    while (fetchMore) {
+        const { data, error } = await supabase
+          .from('students')
+          .select('*')
+          .range(from, from + batchSize - 1)
+          .order('created_at', { ascending: false });
+          
+        if (error) {
+          console.warn("Supabase Error (fetchStudents):", error.message);
+          throw error;
+        }
+
+        if (data && data.length > 0) {
+            allStudents = [...allStudents, ...data];
+            from += batchSize;
+            // If we received fewer rows than asked, we've reached the end
+            if (data.length < batchSize) {
+                fetchMore = false;
+            }
+        } else {
+            fetchMore = false;
+        }
     }
-    return data;
+    
+    return allStudents;
   } catch (err) {
     console.error("fetchStudents error:", err);
     return [];

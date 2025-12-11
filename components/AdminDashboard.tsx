@@ -38,6 +38,46 @@ const Toast: React.FC<{ message: string; type: 'success' | 'error'; onClose: () 
     );
 };
 
+// Helper for resizing image to prevent payload too large errors
+const resizeImage = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 800;
+        const MAX_HEIGHT = 800;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, width, height);
+        // Compress to JPEG with 0.7 quality
+        resolve(canvas.toDataURL('image/jpeg', 0.7)); 
+      };
+      img.onerror = (err) => reject(err);
+    };
+    reader.onerror = (err) => reject(err);
+  });
+};
+
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) => {
   const [activeTab, setActiveTab] = useState<'results' | 'candidates' | 'students' | 'teachers' | 'passcodes' | 'settings'>('results');
   const [candidates, setCandidates] = useState<Candidate[]>([]);
@@ -71,6 +111,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   const [filterStatus, setFilterStatus] = useState<'All' | 'Voted' | 'Pending'>('All');
   const [studentSort, setStudentSort] = useState<'default' | 'name' | 'roll'>('default');
   
+  // Teacher Filters
+  const [teacherSearch, setTeacherSearch] = useState('');
+  const [filterTeacherMajor, setFilterTeacherMajor] = useState<string>('All');
+
   // Passcode Management State
   const [passcodeFilterYear, setPasscodeFilterYear] = useState<string>('All');
   const [passcodeFilterMajor, setPasscodeFilterMajor] = useState<string>('All');
@@ -81,7 +125,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
 
   // Modal States
   const [deleteModal, setDeleteModal] = useState<{ type: 'candidate' | 'student' | 'teacher'; id: string; name: string } | null>(null);
-  const [voteDetailModal, setVoteDetailModal] = useState<{ name: string; category: string; count: number; percentage: string; totalStudents: number } | null>(null);
+  const [voteDetailModal, setVoteDetailModal] = useState<{ name: string; number: number; category: string; count: number; percentage: string; totalStudents: number } | null>(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetConfirmationText, setResetConfirmationText] = useState('');
   
@@ -90,9 +134,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
 
   // Candidate Form
   const [newCandName, setNewCandName] = useState('');
+  const [newCandNumber, setNewCandNumber] = useState('');
   const [newCandMajor, setNewCandMajor] = useState<Major>(Major.CEIT);
   const [newCandYear, setNewCandYear] = useState<string>(Year.Y1);
   const [newCandGender, setNewCandGender] = useState<'Male' | 'Female'>('Male');
+  const [newCandImageFile, setNewCandImageFile] = useState<File | null>(null);
 
   // Student Form
   const [newStudName, setNewStudName] = useState('');
@@ -177,12 +223,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   const loadEventTime = async () => {
     const time = await fetchEventStartTime();
     const date = new Date(time);
-    // Adjust for timezone offset for input type="datetime-local"
     const offset = date.getTimezoneOffset() * 60000; 
     const localISOTime = (new Date(date.getTime() - offset)).toISOString().slice(0, 16);
     
     setEventStartTime(localISOTime);
-    // Initial status update
     const now = new Date().getTime();
     setIsLocked(now < date.getTime());
   };
@@ -194,7 +238,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
       const isoDate = date.toISOString();
       await updateEventStartTime(isoDate);
       showToast('Event time updated successfully!');
-      // Force immediate check
       loadEventTime();
     } catch (e: any) {
       console.error(e);
@@ -202,6 +245,21 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
     } finally {
       setIsUpdatingTime(false);
     }
+  };
+
+  const handleStartImmediately = async () => {
+      setIsUpdatingTime(true);
+      try {
+          const now = new Date();
+          const isoDate = now.toISOString();
+          await updateEventStartTime(isoDate);
+          showToast('Voting started immediately!');
+          loadEventTime();
+      } catch(e) {
+          showToast('Failed to start', 'error');
+      } finally {
+          setIsUpdatingTime(false);
+      }
   };
 
   const initiateResetVotes = () => {
@@ -235,18 +293,36 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
     setIsAddingCandidate(true);
     
     try {
+      let imageUrl = `https://picsum.photos/300/400?random=${Math.floor(Math.random() * 1000)}`;
+      
+      // Handle file upload with compression
+      if (newCandImageFile) {
+          try {
+            imageUrl = await resizeImage(newCandImageFile);
+          } catch (resizeError) {
+            console.error("Image resize failed, using placeholder", resizeError);
+            // Fallback to placeholder if resize fails, or continue?
+            // Continuing with placeholder is safer.
+          }
+      }
+
       await addCandidate({
         name: newCandName,
+        candidateNumber: parseInt(newCandNumber) || 0,
         major: newCandMajor,
         year: newCandYear,
         gender: newCandGender,
-        image: `https://picsum.photos/300/400?random=${Math.floor(Math.random() * 1000)}`
+        image: imageUrl
       });
+      
       setNewCandName('');
+      setNewCandNumber('');
+      setNewCandImageFile(null);
       await loadCandidates();
       showToast('Candidate added successfully!');
-    } catch (error) {
-      showToast('Failed to add candidate', 'error');
+    } catch (error: any) {
+      console.error("Add candidate error:", error);
+      showToast(`Failed to add candidate. ${error.message || ''}`, 'error');
     } finally {
       setIsAddingCandidate(false);
     }
@@ -460,7 +536,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   };
 
   const getFilteredTeachers = () => {
-     return students.filter(s => s.type === 'Teacher');
+     return students.filter(s => {
+        if (s.type !== 'Teacher') return false;
+        const matchSearch = (s.name || '').toLowerCase().includes(teacherSearch.toLowerCase());
+        const matchMajor = filterTeacherMajor === 'All' || s.major === filterTeacherMajor;
+        return matchSearch && matchMajor;
+     });
   }
 
   const displayedStudents = getFilteredStudents();
@@ -510,6 +591,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                     <div key={candidate.id} className="relative group">
                     <div className="flex justify-between items-end mb-1.5">
                         <div className="flex items-center gap-2">
+                             <span className="text-slate-500 font-mono text-xs font-bold mr-1">#{candidate.candidateNumber}</span>
                              <span className={`text-sm font-bold uppercase ${title ? `text-${themeColor}-700` : 'text-slate-600'}`}>
                                 {candidate.name}
                              </span>
@@ -527,6 +609,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                         className="w-full h-3 bg-slate-100 rounded-full overflow-hidden cursor-pointer border border-slate-200 shadow-inner"
                         onClick={() => setVoteDetailModal({ 
                             name: candidate.name, 
+                            number: candidate.candidateNumber,
                             category: categoryLabel, 
                             count: voteCount, 
                             percentage: percentage,
@@ -670,6 +753,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4" onClick={() => setVoteDetailModal(null)}>
           <div className="bg-white max-w-sm w-full p-6 rounded-xl shadow-2xl border border-slate-200" onClick={e => e.stopPropagation()}>
             <div className="text-center">
+              <div className="text-slate-400 font-mono text-sm font-bold mb-1">Candidate #{voteDetailModal.number}</div>
               <h3 className="text-slate-800 text-2xl font-bold font-tech uppercase mb-1">{voteDetailModal.name}</h3>
               <p className="text-cyan-600 text-xs font-bold uppercase tracking-widest mb-6">{voteDetailModal.category}</p>
 
@@ -698,9 +782,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                 {adminRole === AdminRole.SuperAdmin ? 'Super Admin' : 'Admin View'}
               </h1>
               {adminRole === AdminRole.SuperAdmin && (
-                  <div className={`px-3 py-1 rounded border flex items-center gap-2 text-xs font-bold uppercase tracking-widest ${isLocked ? 'bg-red-50 text-red-600 border-red-200' : 'bg-green-50 text-green-600 border-green-200'}`}>
-                      <div className={`w-2 h-2 rounded-full ${isLocked ? 'bg-red-500' : 'bg-green-500'} animate-pulse`}></div>
-                      {isLocked ? `LOCKED (${timeRemaining})` : 'VOTING LIVE'}
+                  <div className="flex items-center gap-2">
+                    <div className={`px-3 py-1 rounded border flex items-center gap-2 text-xs font-bold uppercase tracking-widest ${isLocked ? 'bg-red-50 text-red-600 border-red-200' : 'bg-green-50 text-green-600 border-green-200'}`}>
+                        <div className={`w-2 h-2 rounded-full ${isLocked ? 'bg-red-500' : 'bg-green-500'} animate-pulse`}></div>
+                        {isLocked ? `LOCKED (${timeRemaining})` : 'VOTING LIVE'}
+                    </div>
+                    {isLocked && (
+                        <button 
+                            onClick={handleStartImmediately}
+                            disabled={isUpdatingTime}
+                            className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-[10px] font-bold uppercase tracking-widest shadow-sm transition-colors flex items-center gap-1"
+                        >
+                            {isUpdatingTime ? <Spinner /> : 'Start Now'}
+                        </button>
+                    )}
                   </div>
               )}
           </div>
@@ -800,7 +895,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                 <div key={candidate.id} className="glass-panel bg-white p-3 flex gap-4 items-center rounded-lg group border border-slate-200">
                     <img src={candidate.image} alt={candidate.name} loading="lazy" decoding="async" className="w-12 h-12 object-cover rounded-md" />
                     <div className="flex-1">
-                      <h4 className="text-slate-800 font-bold text-sm">{candidate.name}</h4>
+                      <div className="flex items-center gap-2">
+                          <span className="text-slate-400 font-mono text-xs font-bold">#{candidate.candidateNumber}</span>
+                          <h4 className="text-slate-800 font-bold text-sm">{candidate.name}</h4>
+                      </div>
                       <p className="text-slate-400 text-[10px] font-bold uppercase">{candidate.major} • {candidate.gender}</p>
                     </div>
                     <button 
@@ -823,6 +921,18 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                         disabled={isAddingCandidate}
                         value={newCandName} 
                         onChange={e => setNewCandName(e.target.value)} 
+                        className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-sm rounded-lg focus:border-cyan-500 outline-none" 
+                      />
+                  </div>
+                  <div>
+                      <label className="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Candidate Number</label>
+                      <input 
+                        type="number"
+                        required 
+                        disabled={isAddingCandidate}
+                        value={newCandNumber} 
+                        onChange={e => setNewCandNumber(e.target.value)} 
+                        placeholder="e.g. 1"
                         className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-sm rounded-lg focus:border-cyan-500 outline-none" 
                       />
                   </div>
@@ -883,6 +993,21 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                         </div>
                       </div>
                   </div>
+                  <div>
+                      <label className="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Photo Upload</label>
+                      <input 
+                        type="file" 
+                        accept="image/*"
+                        disabled={isAddingCandidate}
+                        onChange={(e) => {
+                            if(e.target.files && e.target.files[0]) {
+                                setNewCandImageFile(e.target.files[0]);
+                            }
+                        }}
+                        className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-xs rounded-lg focus:border-cyan-500 outline-none file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-cyan-50 file:text-cyan-700 hover:file:bg-cyan-100" 
+                      />
+                      <p className="text-[10px] text-slate-400 mt-1">If no image is uploaded, a placeholder will be used.</p>
+                  </div>
                   <button 
                     disabled={isAddingCandidate}
                     className="w-full bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-3 rounded-lg disabled:opacity-50 flex justify-center uppercase text-xs tracking-wider shadow-md shadow-cyan-200"
@@ -894,7 +1019,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
             </div>
         )}
 
-        {/* Manage Passcodes */}
+        {/* ... Rest of the component (Passcodes, Teachers, Students, Settings) ... */}
+        {/* Passcode Management */}
         {!isLoading && activeTab === 'passcodes' && adminRole === AdminRole.SuperAdmin && (
             <div className="animate-fadeIn space-y-4">
                 <div className="glass-panel bg-white p-4 rounded-xl flex flex-col sm:flex-row justify-between items-center gap-4 border border-slate-200">
@@ -956,11 +1082,40 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
         {!isLoading && activeTab === 'teachers' && adminRole === AdminRole.SuperAdmin && (
             <div className="grid lg:grid-cols-3 gap-8 animate-fadeIn">
               <div className="lg:col-span-2">
-                 <div className="glass-panel bg-white p-4 mb-4 rounded-xl flex justify-between items-center border border-slate-200">
-                     <h4 className="font-bold text-slate-700 text-xs uppercase tracking-wider">Staff List</h4>
-                     <span className="bg-cyan-50 text-cyan-700 text-[10px] font-bold px-3 py-1 rounded border border-cyan-100 uppercase">
-                        Total: {displayedTeachers.length}
-                     </span>
+                 <div className="glass-panel bg-white p-4 mb-4 rounded-xl flex flex-col gap-4 border border-slate-200">
+                    <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                        <h4 className="font-bold text-slate-700 text-xs uppercase tracking-wider">Staff List</h4>
+                        <span className="bg-cyan-50 text-cyan-700 text-[10px] font-bold px-3 py-1 rounded border border-cyan-100 uppercase">
+                            Total: {displayedTeachers.length}
+                        </span>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row gap-4">
+                        <div className="flex-1">
+                            <label className="text-[10px] text-slate-500 font-bold uppercase block mb-1">Search Staff</label>
+                            <input 
+                                type="text" 
+                                placeholder="Name..." 
+                                value={teacherSearch}
+                                onChange={(e) => setTeacherSearch(e.target.value)}
+                                className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-xs rounded-lg outline-none focus:border-cyan-500" 
+                            />
+                        </div>
+                        <div>
+                            <label className="text-[10px] text-slate-500 font-bold uppercase block mb-1">Department</label>
+                            <div className="relative min-w-[150px]">
+                                <select value={filterTeacherMajor} onChange={e => setFilterTeacherMajor(e.target.value)} className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-xs rounded-lg outline-none appearance-none pr-8">
+                                    <option value="All">All Departments</option>
+                                    {Object.values(Major).map(m => <option key={m} value={m}>{m}</option>)}
+                                </select>
+                                <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-slate-500">
+                                    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                  </div>
                  
                  <div className="overflow-x-auto glass-panel bg-white rounded-xl max-h-[600px] overflow-y-auto custom-scrollbar border border-slate-200">
@@ -1077,6 +1232,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
             </div>
         )}
 
+        {/* ... Rest of components ... */}
         {/* Manage Students */}
         {!isLoading && activeTab === 'students' && (
            <div className="grid lg:grid-cols-3 gap-8 animate-fadeIn relative">
@@ -1086,7 +1242,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                     <div className="flex justify-between items-center border-b border-slate-100 pb-3">
                          <h4 className="font-bold text-slate-700 text-xs uppercase tracking-wider">Student Filters</h4>
                          <span className="bg-cyan-50 text-cyan-700 text-[10px] font-bold px-3 py-1 rounded border border-cyan-100 uppercase">
-                            Total: {students.length} | Displayed: {displayedStudents.length}
+                            Total: {students.filter(s => s.type === 'Student').length} | Displayed: {displayedStudents.length}
                          </span>
                     </div>
 
