@@ -71,7 +71,9 @@ const CandidateCard: React.FC<CandidateCardProps> = ({
           
           <div className="absolute inset-0 bg-gradient-to-t from-slate-900/90 via-slate-900/20 to-transparent flex flex-col justify-end p-4">
             <div>
-              <h3 className="text-lg md:text-xl font-bold text-white font-tech uppercase tracking-wide leading-none mb-1 drop-shadow-md">{candidate.name}</h3>
+              <h3 className="text-lg md:text-xl font-bold text-white font-tech uppercase tracking-wide leading-none mb-1 drop-shadow-md">
+                 {candidate.name}
+              </h3>
               <p className={`${isMale ? 'text-cyan-300' : 'text-pink-300'} font-bold text-xs uppercase tracking-widest drop-shadow-sm`}>{candidate.major}</p>
             </div>
           </div>

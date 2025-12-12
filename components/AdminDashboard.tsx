@@ -118,6 +118,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   // Passcode Management State
   const [passcodeFilterYear, setPasscodeFilterYear] = useState<string>('All');
   const [passcodeFilterMajor, setPasscodeFilterMajor] = useState<string>('All');
+  const [passcodeSearch, setPasscodeSearch] = useState('');
   const [editingPasscode, setEditingPasscode] = useState<{year: Year, major: Major, code: string} | null>(null);
 
   // Selection for Bulk Actions
@@ -1019,16 +1020,24 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
             </div>
         )}
 
-        {/* ... Rest of the component (Passcodes, Teachers, Students, Settings) ... */}
         {/* Passcode Management */}
         {!isLoading && activeTab === 'passcodes' && adminRole === AdminRole.SuperAdmin && (
             <div className="animate-fadeIn space-y-4">
-                <div className="glass-panel bg-white p-4 rounded-xl flex flex-col sm:flex-row justify-between items-center gap-4 border border-slate-200">
-                    <h4 className="font-bold text-slate-700 text-xs uppercase tracking-wider">Passcodes</h4>
+                <div className="glass-panel bg-white p-4 rounded-xl flex flex-col md:flex-row justify-between items-center gap-4 border border-slate-200">
+                    <div className="flex-1 w-full">
+                       <label className="text-[10px] text-slate-500 font-bold uppercase block mb-1">Search Class or Code</label>
+                       <input 
+                           type="text" 
+                           placeholder="Type to search..." 
+                           value={passcodeSearch}
+                           onChange={(e) => setPasscodeSearch(e.target.value)}
+                           className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-xs rounded-lg outline-none focus:border-cyan-500" 
+                       />
+                    </div>
                     
-                    <div className="flex gap-2">
-                         <div className="relative">
-                            <select value={passcodeFilterYear} onChange={e => setPasscodeFilterYear(e.target.value)} className="bg-slate-50 border border-slate-300 text-slate-800 text-xs rounded-lg px-3 py-2 outline-none appearance-none pr-8">
+                    <div className="flex gap-2 w-full md:w-auto">
+                         <div className="relative flex-1 md:flex-none">
+                            <select value={passcodeFilterYear} onChange={e => setPasscodeFilterYear(e.target.value)} className="w-full bg-slate-50 border border-slate-300 text-slate-800 text-xs rounded-lg px-3 py-2 outline-none appearance-none pr-8">
                                 <option value="All">All Years</option>
                                 {Object.values(Year).map(y => <option key={y} value={y}>{y}</option>)}
                             </select>
@@ -1036,8 +1045,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                                 <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                             </div>
                         </div>
-                        <div className="relative">
-                            <select value={passcodeFilterMajor} onChange={e => setPasscodeFilterMajor(e.target.value)} className="bg-slate-50 border border-slate-300 text-slate-800 text-xs rounded-lg px-3 py-2 outline-none appearance-none pr-8">
+                        <div className="relative flex-1 md:flex-none">
+                            <select value={passcodeFilterMajor} onChange={e => setPasscodeFilterMajor(e.target.value)} className="w-full bg-slate-50 border border-slate-300 text-slate-800 text-xs rounded-lg px-3 py-2 outline-none appearance-none pr-8">
                                 <option value="All">All Majors</option>
                                 {Object.values(Major).map(m => <option key={m} value={m}>{m}</option>)}
                             </select>
@@ -1048,32 +1057,55 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[600px] overflow-y-auto custom-scrollbar pb-10">
-                    {passcodesList.map((item, idx) => (
-                        <div key={`${item.year}-${item.major}`} className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 hover:shadow-md transition-shadow relative group">
-                            <div className="flex justify-between items-start">
-                                <div>
-                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{item.year}</div>
-                                    <div className="font-bold text-slate-800 text-sm mt-1">{item.major}</div>
-                                </div>
-                                <button 
-                                    onClick={() => setEditingPasscode({ year: item.year, major: item.major, code: item.currentCode })}
-                                    className="text-cyan-600 hover:text-cyan-800 bg-cyan-50 p-2 rounded-lg transition-colors"
-                                >
-                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                                    </svg>
-                                </button>
-                            </div>
-                            <div className="mt-4 pt-4 border-t border-slate-100 flex justify-between items-center">
-                                <span className="text-[10px] text-slate-400 font-bold uppercase">Passcode:</span>
-                                <span className="font-mono font-bold text-slate-600 bg-slate-100 px-2 py-1 rounded text-sm tracking-wider">{item.currentCode}</span>
-                            </div>
-                        </div>
-                    ))}
-                    {passcodesList.length === 0 && (
-                        <div className="col-span-full text-center py-8 text-slate-400 text-sm">No classes found matching filters.</div>
-                    )}
+                <div className="overflow-hidden glass-panel bg-white rounded-xl border border-slate-200">
+                    <table className="w-full text-left text-sm text-slate-600">
+                        <thead className="text-xs uppercase bg-slate-100 text-slate-500">
+                            <tr>
+                                <th className="px-6 py-4 font-bold tracking-wider">Academic Year</th>
+                                <th className="px-6 py-4 font-bold tracking-wider">Major / Department</th>
+                                <th className="px-6 py-4 font-bold tracking-wider">Current Passcode</th>
+                                <th className="px-6 py-4 text-right">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                           {passcodesList
+                             .filter(p => 
+                                (passcodeSearch === '' || 
+                                 p.major.toLowerCase().includes(passcodeSearch.toLowerCase()) || 
+                                 p.year.toLowerCase().includes(passcodeSearch.toLowerCase()) ||
+                                 p.currentCode.toLowerCase().includes(passcodeSearch.toLowerCase()))
+                             )
+                             .map((item) => (
+                               <tr key={`${item.year}-${item.major}`} className="hover:bg-slate-50 transition-colors">
+                                   <td className="px-6 py-4">
+                                       <span className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs font-bold uppercase">{item.year}</span>
+                                   </td>
+                                   <td className="px-6 py-4 font-bold text-slate-800">{item.major}</td>
+                                   <td className="px-6 py-4">
+                                       <span className="font-mono font-bold text-cyan-700 bg-cyan-50 px-3 py-1 rounded border border-cyan-100 tracking-wider">
+                                          {item.currentCode}
+                                       </span>
+                                   </td>
+                                   <td className="px-6 py-4 text-right">
+                                       <button 
+                                            onClick={() => setEditingPasscode({ year: item.year, major: item.major, code: item.currentCode })}
+                                            className="text-cyan-600 hover:text-cyan-800 font-bold text-xs uppercase hover:underline"
+                                       >
+                                            Edit
+                                       </button>
+                                   </td>
+                               </tr>
+                           ))}
+                           {passcodesList.filter(p => 
+                                (passcodeSearch === '' || 
+                                 p.major.toLowerCase().includes(passcodeSearch.toLowerCase()) || 
+                                 p.year.toLowerCase().includes(passcodeSearch.toLowerCase()) ||
+                                 p.currentCode.toLowerCase().includes(passcodeSearch.toLowerCase()))
+                             ).length === 0 && (
+                               <tr><td colSpan={4} className="px-6 py-8 text-center text-slate-400 italic">No classes found.</td></tr>
+                           )}
+                        </tbody>
+                    </table>
                 </div>
             </div>
         )}
@@ -1232,7 +1264,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
             </div>
         )}
 
-        {/* ... Rest of components ... */}
         {/* Manage Students */}
         {!isLoading && activeTab === 'students' && (
            <div className="grid lg:grid-cols-3 gap-8 animate-fadeIn relative">
