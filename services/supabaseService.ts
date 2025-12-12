@@ -556,16 +556,21 @@ export const bulkUpdateClassPasscode = async (year: Year, major: Major, newPassc
             return;
         }
 
-        // Determine if we are updating Teachers or Students based on year
         const type = year === Year.Staff ? 'Teacher' : 'Student';
+        
+        // Use a smarter query builder
+        let query = supabase.from('students').update({ passcode: newPasscode });
 
-        const { error } = await supabase
-            .from('students')
-            .update({ passcode: newPasscode })
-            .eq('year', year)
-            .eq('major', major)
-            .eq('type', type);
+        if (type === 'Teacher') {
+           // For Teachers: Update all teachers of that major, regardless of whether 'year' says 'Staff' or 'Teacher' in DB
+           // This fixes issues if the enum changed from Staff to Teacher
+           query = query.eq('major', major).eq('type', 'Teacher');
+        } else {
+           // For Students: Must match year exactly
+           query = query.eq('year', year).eq('major', major).eq('type', 'Student');
+        }
             
+        const { error } = await query;
         if (error) throw error;
 
     } catch (err) {

@@ -482,7 +482,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   const getPasscodeList = () => {
     const list: {year: Year, major: Major, currentCode: string}[] = [];
     Object.values(Year).forEach(y => {
-        // If year is Staff, we show ALL majors. If year is Student (Y1-Y6), we show only STUDENT_MAJORS
+        // If year is Staff/Teacher, we show ALL majors. If year is Student (Y1-Y6), we show only STUDENT_MAJORS
         const majorsForYear = (y === Year.Staff) ? Object.values(Major) : STUDENT_MAJORS;
 
         majorsForYear.forEach(m => {
@@ -591,11 +591,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                 return (
                     <div key={candidate.id} className="relative group">
                     <div className="flex justify-between items-end mb-1.5">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                              <span className="text-slate-500 font-mono text-xs font-bold mr-1">#{candidate.candidateNumber}</span>
                              <span className={`text-sm font-bold uppercase ${title ? `text-${themeColor}-700` : 'text-slate-600'}`}>
                                 {candidate.name}
                              </span>
+
                              {title && (
                                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded text-white ${index === 0 ? 'bg-yellow-500 shadow-md' : `bg-${themeColor}-500 opacity-80`}`}>
                                    {title}
@@ -1116,7 +1117,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
               <div className="lg:col-span-2">
                  <div className="glass-panel bg-white p-4 mb-4 rounded-xl flex flex-col gap-4 border border-slate-200">
                     <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-                        <h4 className="font-bold text-slate-700 text-xs uppercase tracking-wider">Staff List</h4>
+                        <h4 className="font-bold text-slate-700 text-xs uppercase tracking-wider">Teacher List</h4>
                         <span className="bg-cyan-50 text-cyan-700 text-[10px] font-bold px-3 py-1 rounded border border-cyan-100 uppercase">
                             Total: {displayedTeachers.length}
                         </span>
@@ -1124,7 +1125,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
 
                     <div className="flex flex-col sm:flex-row gap-4">
                         <div className="flex-1">
-                            <label className="text-[10px] text-slate-500 font-bold uppercase block mb-1">Search Staff</label>
+                            <label className="text-[10px] text-slate-500 font-bold uppercase block mb-1">Search Teacher</label>
                             <input 
                                 type="text" 
                                 placeholder="Name..." 

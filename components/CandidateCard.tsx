@@ -36,23 +36,7 @@ const CandidateCard: React.FC<CandidateCardProps> = ({
           : `border border-slate-200 hover:border-${themeColor}-300 hover:shadow-lg`
         }
       `}>
-        {/* Distinct Candidate Number Badge */}
-        <div className="absolute top-3 left-3 z-20">
-            <div className={`
-                relative bg-white/95 backdrop-blur-md 
-                px-3 py-2 rounded-lg 
-                shadow-[0_4px_20px_-2px_rgba(0,0,0,0.2)]
-                border-l-4 ${isMale ? 'border-cyan-500' : 'border-pink-500'}
-                flex flex-col items-center justify-center min-w-[52px]
-                transition-transform group-hover:scale-105
-            `}>
-                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-0.5">NO.</span>
-                <span className="text-3xl font-tech font-black text-slate-800 leading-none tracking-tighter">
-                    {candidate.candidateNumber}
-                </span>
-            </div>
-        </div>
-
+        
         {/* Selection Marker */}
         {isSelected && (
            <div className={`absolute top-3 right-3 z-20 ${isMale ? 'bg-cyan-500' : 'bg-pink-500'} text-white w-8 h-8 rounded-full flex items-center justify-center font-bold text-lg shadow-md animate-bounce`}>
@@ -72,7 +56,7 @@ const CandidateCard: React.FC<CandidateCardProps> = ({
           <div className="absolute inset-0 bg-gradient-to-t from-slate-900/90 via-slate-900/20 to-transparent flex flex-col justify-end p-4">
             <div>
               <h3 className="text-lg md:text-xl font-bold text-white font-tech uppercase tracking-wide leading-none mb-1 drop-shadow-md">
-                 {candidate.name}
+                 {candidate.candidateNumber}. {candidate.name}
               </h3>
               <p className={`${isMale ? 'text-cyan-300' : 'text-pink-300'} font-bold text-xs uppercase tracking-widest drop-shadow-sm`}>{candidate.major}</p>
             </div>

@@ -8,7 +8,7 @@ export enum Year {
   Y5 = "5th year",
   Y6 = "6th year",
   Master = "Master",
-  Staff = "Staff" // Added for Teachers
+  Staff = "Teacher" // Changed from "Staff" to "Teacher"
 }
 
 export enum Major {
