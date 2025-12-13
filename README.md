@@ -82,7 +82,7 @@ Run the following SQL in your Supabase SQL Editor to set up the required tables:
 -- 1. Enable UUID extension
 create extension if not exists "uuid-ossp";
 
--- 2. Create Students Table
+-- 2. Create Students Table (Note: Teachers are also stored here)
 create table students (
   id uuid default uuid_generate_v4() primary key,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null,
@@ -126,6 +126,12 @@ create table app_config (
 
 -- 6. Insert Default Config
 insert into app_config (key, value) values ('event_start_time', now());
+
+-- 7. Manual Insert Example for Teacher
+-- IMPORTANT: There is NO 'teachers' table. Everything is in 'students'.
+-- If you want to insert a teacher manually via SQL, use this format:
+-- INSERT INTO students (name, major, type, passcode, year, roll_number) 
+-- VALUES ('Daw Su Yee H', 'EC', 'Teacher', 'TEEC', 'Teacher', 'T-EC-001');
 ```
 
 ### 5. Running the App

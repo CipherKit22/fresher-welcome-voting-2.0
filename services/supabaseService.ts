@@ -426,6 +426,10 @@ export const addStudent = async (name: string, year: string, major: string, roll
 
 export const addTeacher = async (name: string, major: string, passcode: string) => {
     try {
+      // Generate a unique ID for the roll_number column to satisfy DB constraints
+      // while avoiding the generic 'Staff' string which causes duplicate key errors
+      const uniqueRoll = `T-${Date.now().toString().slice(-6)}`;
+
       if (isMockMode || !supabase) {
          console.log("Mock Mode: Teacher added", { name, major, passcode });
          MOCK_STUDENTS.unshift({
@@ -433,7 +437,7 @@ export const addTeacher = async (name: string, major: string, passcode: string) 
             name,
             major,
             year: Year.Staff,
-            rollNumber: 'Staff',
+            rollNumber: uniqueRoll,
             passcode: passcode,
             type: 'Teacher',
             hasVoted: false
@@ -446,8 +450,8 @@ export const addTeacher = async (name: string, major: string, passcode: string) 
         .insert([{ 
             name, 
             major, 
-            year: Year.Staff, 
-            roll_number: 'Staff', 
+            year: Year.Staff, // "Teacher" from Enum
+            roll_number: uniqueRoll, 
             passcode: passcode || 'TEACHER', 
             type: 'Teacher', 
             has_voted: false 
