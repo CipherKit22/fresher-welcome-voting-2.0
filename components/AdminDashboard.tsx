@@ -102,6 +102,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
   const [isResettingVotes, setIsResettingVotes] = useState(false);
   const [isUpdatingPasscode, setIsUpdatingPasscode] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Filters
   const [resultSort, setResultSort] = useState<'votes' | 'name'>('votes');
@@ -219,6 +220,21 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
     if (adminRole !== AdminRole.SuperAdmin) return;
     const data = await fetchStudents();
     setStudents(data || []);
+  };
+
+  // Refresh Handlers
+  const handleRefreshResults = async () => {
+      setIsRefreshing(true);
+      await loadResultsOnly();
+      setIsRefreshing(false);
+      showToast('Results synced');
+  };
+
+  const handleRefreshStudents = async () => {
+      setIsRefreshing(true);
+      await loadStudents();
+      setIsRefreshing(false);
+      showToast('Student list synced');
   };
 
   const loadEventTime = async () => {
@@ -853,6 +869,19 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
               <div className="flex justify-between items-center mb-4">
                  <div className="flex-1"></div>
                  <div className="flex items-center gap-4">
+                     {/* Added Refresh Button */}
+                     <button
+                        onClick={handleRefreshResults}
+                        disabled={isRefreshing}
+                        className="bg-white border border-slate-300 text-slate-600 hover:text-cyan-600 hover:border-cyan-300 px-3 py-2 rounded-lg transition-colors shadow-sm"
+                        title="Refresh Results"
+                     >
+                        {isRefreshing ? <Spinner /> : (
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                        )}
+                     </button>
                      {adminRole === AdminRole.SuperAdmin && (
                        <button
                          onClick={initiateResetVotes}
@@ -1018,6 +1047,221 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                   </button>
                 </form>
             </div>
+            </div>
+        )}
+
+        {/* Manage Students (Implemented) */}
+        {!isLoading && activeTab === 'students' && adminRole === AdminRole.SuperAdmin && (
+            <div className="animate-fadeIn space-y-6">
+                
+                {/* Header & Controls */}
+                <div className="glass-panel bg-white p-4 rounded-xl flex flex-col md:flex-row justify-between items-center gap-4 border border-slate-200">
+                    <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-start">
+                        <div className="bg-cyan-50 text-cyan-700 px-4 py-2 rounded-lg border border-cyan-100">
+                             <span className="text-[10px] font-bold uppercase block tracking-wider opacity-70">Students</span>
+                             <span className="text-xl font-bold font-tech">{students.filter(s => s.type !== 'Teacher').length}</span>
+                        </div>
+                        <div className="bg-green-50 text-green-700 px-4 py-2 rounded-lg border border-green-100">
+                             <span className="text-[10px] font-bold uppercase block tracking-wider opacity-70">Voted</span>
+                             <span className="text-xl font-bold font-tech">{students.filter(s => s.type !== 'Teacher' && s.has_voted).length}</span>
+                        </div>
+                    </div>
+                    
+                    <button
+                        onClick={handleRefreshStudents}
+                        disabled={isRefreshing}
+                        className="bg-white border border-slate-300 text-slate-600 hover:text-cyan-600 hover:border-cyan-300 p-2 rounded-lg transition-colors shadow-sm"
+                        title="Refresh Student List"
+                    >
+                         {isRefreshing ? <Spinner /> : (
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                        )}
+                    </button>
+                </div>
+
+                <div className="grid lg:grid-cols-3 gap-8">
+                  {/* Students Table */}
+                  <div className="lg:col-span-2">
+                     <div className="glass-panel bg-white p-4 mb-4 rounded-xl flex flex-col gap-4 border border-slate-200">
+                         {/* Filters */}
+                         <div className="flex flex-col md:flex-row gap-4">
+                             <input 
+                                type="text" 
+                                placeholder="Search Name or Roll No..." 
+                                value={studentSearch}
+                                onChange={(e) => setStudentSearch(e.target.value)}
+                                className="flex-1 bg-slate-50 border border-slate-300 p-2 text-slate-900 text-xs rounded-lg outline-none focus:border-cyan-500" 
+                             />
+                             <div className="flex gap-2">
+                                <select value={filterYear} onChange={(e) => setFilterYear(e.target.value)} className="bg-slate-50 border border-slate-300 text-slate-800 text-xs rounded-lg px-2 outline-none">
+                                    <option value="All">All Years</option>
+                                    {Object.values(Year).filter(y => y !== Year.Staff).map(y => <option key={y} value={y}>{y}</option>)}
+                                </select>
+                                <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as any)} className="bg-slate-50 border border-slate-300 text-slate-800 text-xs rounded-lg px-2 outline-none">
+                                    <option value="All">Status</option>
+                                    <option value="Voted">Voted</option>
+                                    <option value="Pending">Pending</option>
+                                </select>
+                             </div>
+                         </div>
+                         
+                         {/* Bulk Actions */}
+                         {selectedStudentIds.size > 0 && (
+                            <div className="flex justify-between items-center bg-cyan-50 p-2 rounded-lg border border-cyan-100 animate-fadeIn">
+                                <span className="text-xs font-bold text-cyan-800 uppercase tracking-wider ml-2">{selectedStudentIds.size} Selected</span>
+                                <div className="flex gap-2">
+                                    <button onClick={() => handleBulkStatusUpdate(false)} disabled={isBulkProcessing} className="text-[10px] bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-3 py-1 rounded font-bold uppercase">Set Pending</button>
+                                    <button onClick={() => handleBulkStatusUpdate(true)} disabled={isBulkProcessing} className="text-[10px] bg-white border border-slate-200 hover:bg-slate-50 text-green-600 px-3 py-1 rounded font-bold uppercase">Set Voted</button>
+                                    <button onClick={handleBulkDelete} disabled={isBulkProcessing} className="text-[10px] bg-red-100 hover:bg-red-200 text-red-600 px-3 py-1 rounded font-bold uppercase">Delete</button>
+                                </div>
+                            </div>
+                         )}
+                     </div>
+
+                     <div className="overflow-x-auto glass-panel bg-white rounded-xl max-h-[600px] overflow-y-auto custom-scrollbar border border-slate-200">
+                         <table className="w-full text-left text-sm text-slate-600">
+                            <thead className="text-xs uppercase bg-slate-100 text-slate-500 sticky top-0 z-10 backdrop-blur-md">
+                              <tr>
+                                  <th className="px-4 py-3 w-10">
+                                      <input 
+                                        type="checkbox" 
+                                        onChange={() => toggleSelectAll(displayedStudents.map(s => s.id))}
+                                        checked={allDisplayedSelected}
+                                        className="rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
+                                      />
+                                  </th>
+                                  <th className="px-4 py-3 whitespace-nowrap cursor-pointer hover:bg-slate-200" onClick={() => setStudentSort('roll')}>Roll No</th>
+                                  <th className="px-4 py-3 whitespace-nowrap cursor-pointer hover:bg-slate-200" onClick={() => setStudentSort('name')}>Name</th>
+                                  <th className="px-4 py-3 whitespace-nowrap">Major / Year</th>
+                                  <th className="px-4 py-3 whitespace-nowrap">Status</th>
+                                  <th className="px-4 py-3 whitespace-nowrap text-right">Action</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                                {displayedStudents.length > 0 ? (
+                                    displayedStudents.map((stud) => (
+                                        <tr key={stud.id} className={`border-b border-slate-100 hover:bg-slate-50 ${selectedStudentIds.has(stud.id) ? 'bg-cyan-50/50' : ''}`}>
+                                            <td className="px-4 py-3">
+                                                <input 
+                                                    type="checkbox" 
+                                                    checked={selectedStudentIds.has(stud.id)}
+                                                    onChange={() => toggleStudentSelection(stud.id)}
+                                                    className="rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
+                                                />
+                                            </td>
+                                            <td className="px-4 py-3 font-mono text-xs font-bold text-slate-500">{stud.roll_number}</td>
+                                            <td className="px-4 py-3 font-bold text-slate-800 whitespace-nowrap">{stud.name}</td>
+                                            <td className="px-4 py-3 text-xs">
+                                                <div className="flex flex-col">
+                                                    <span className="font-bold text-slate-600">{stud.major}</span>
+                                                    <span className="text-slate-400">{stud.year}</span>
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <button 
+                                                    onClick={() => handleStudentStatusChange(stud.id, !stud.has_voted)}
+                                                    className={`text-[10px] font-bold uppercase px-2 py-1 rounded border transition-colors ${stud.has_voted ? 'bg-green-50 text-green-600 border-green-200 hover:bg-red-50 hover:text-red-600 hover:border-red-200' : 'bg-slate-100 text-slate-400 border-slate-200 hover:bg-green-50 hover:text-green-600 hover:border-green-200'}`}
+                                                >
+                                                    {stud.has_voted ? 'Voted' : 'Pending'}
+                                                </button>
+                                            </td>
+                                            <td className="px-4 py-3 text-right">
+                                                <button 
+                                                    onClick={() => promptDeleteStudent(stud.id, stud.name)}
+                                                    className="text-red-400 hover:text-red-600 p-1 rounded hover:bg-red-50 transition-colors"
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))
+                                ) : (
+                                    <tr>
+                                        <td colSpan={6} className="px-4 py-8 text-center text-slate-400 font-mono text-xs">No students found matching filters.</td>
+                                    </tr>
+                                )}
+                            </tbody>
+                         </table>
+                     </div>
+                  </div>
+
+                  {/* Add Student Form */}
+                  <div className="glass-panel bg-white p-6 h-fit sticky top-4 rounded-xl border border-slate-200">
+                      <h3 className="text-lg font-tech text-slate-800 mb-4 uppercase tracking-wider">Authorize Student</h3>
+                      <form onSubmit={handleAddStudent} className="space-y-4">
+                        <div>
+                            <label className="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Student Name</label>
+                            <input 
+                                required 
+                                disabled={isAddingStudent}
+                                value={newStudName} 
+                                onChange={e => setNewStudName(e.target.value)} 
+                                className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-sm rounded-lg focus:border-cyan-500 outline-none" 
+                            />
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                             <div>
+                                <label className="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Year</label>
+                                <select 
+                                    disabled={isAddingStudent}
+                                    value={newStudYear} 
+                                    onChange={e => setNewStudYear(e.target.value as Year)} 
+                                    className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-xs rounded-lg appearance-none"
+                                >
+                                    {Object.values(Year).filter(y => y !== Year.Staff).map(y => <option key={y} value={y}>{y}</option>)}
+                                </select>
+                             </div>
+                             <div>
+                                <label className="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Major</label>
+                                <select 
+                                    disabled={isAddingStudent}
+                                    value={newStudMajor} 
+                                    onChange={e => setNewStudMajor(e.target.value as Major)} 
+                                    className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-xs rounded-lg appearance-none"
+                                >
+                                    {STUDENT_MAJORS.map(m => <option key={m} value={m}>{m}</option>)}
+                                </select>
+                             </div>
+                        </div>
+                        <div>
+                            <label className="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Roll Number</label>
+                            <input 
+                                required 
+                                disabled={isAddingStudent}
+                                value={newStudRoll} 
+                                onChange={e => setNewStudRoll(e.target.value)} 
+                                className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-sm rounded-lg focus:border-cyan-500 outline-none" 
+                                placeholder="e.g. 1"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Passcode</label>
+                            <div className="relative">
+                                <input 
+                                    type={showStudentPasscode ? 'text' : 'password'}
+                                    required 
+                                    disabled={isAddingStudent}
+                                    value={newStudPasscode} 
+                                    onChange={e => setNewStudPasscode(e.target.value)} 
+                                    className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-sm rounded-lg focus:border-cyan-500 outline-none pr-8" 
+                                />
+                                <button type="button" onClick={() => setShowStudentPasscode(!showStudentPasscode)} className="absolute inset-y-0 right-0 px-2 text-slate-400">
+                                   {showStudentPasscode ? 'Hide' : 'Show'}
+                                </button>
+                            </div>
+                        </div>
+
+                        <button 
+                            disabled={isAddingStudent}
+                            className="w-full bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-3 rounded-lg disabled:opacity-50 flex justify-center uppercase text-xs tracking-wider shadow-md shadow-cyan-200"
+                        >
+                            {isAddingStudent ? <Spinner /> : 'Add Student'}
+                        </button>
+                      </form>
+                  </div>
+                </div>
             </div>
         )}
 
