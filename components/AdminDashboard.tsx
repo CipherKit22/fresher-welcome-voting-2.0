@@ -1057,13 +1057,19 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                 {/* Header & Controls */}
                 <div className="glass-panel bg-white p-4 rounded-xl flex flex-col md:flex-row justify-between items-center gap-4 border border-slate-200">
                     <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-start">
-                        <div className="bg-cyan-50 text-cyan-700 px-4 py-2 rounded-lg border border-cyan-100">
+                        <div className="bg-cyan-50 text-cyan-700 px-4 py-2 rounded-lg border border-cyan-100 min-w-[120px]">
                              <span className="text-[10px] font-bold uppercase block tracking-wider opacity-70">Students</span>
-                             <span className="text-xl font-bold font-tech">{students.filter(s => s.type !== 'Teacher').length}</span>
+                             <div className="flex items-baseline gap-1">
+                                <span className="text-xl font-bold font-tech">{displayedStudents.length}</span>
+                                <span className="text-xs font-bold opacity-60">/ {students.filter(s => s.type !== 'Teacher').length}</span>
+                             </div>
                         </div>
-                        <div className="bg-green-50 text-green-700 px-4 py-2 rounded-lg border border-green-100">
+                        <div className="bg-green-50 text-green-700 px-4 py-2 rounded-lg border border-green-100 min-w-[120px]">
                              <span className="text-[10px] font-bold uppercase block tracking-wider opacity-70">Voted</span>
-                             <span className="text-xl font-bold font-tech">{students.filter(s => s.type !== 'Teacher' && s.has_voted).length}</span>
+                             <div className="flex items-baseline gap-1">
+                                <span className="text-xl font-bold font-tech">{displayedStudents.filter(s => s.has_voted).length}</span>
+                                <span className="text-xs font-bold opacity-60">/ {students.filter(s => s.type !== 'Teacher' && s.has_voted).length}</span>
+                             </div>
                         </div>
                     </div>
                     
@@ -1536,35 +1542,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                        {isUpdatingTime ? <Spinner /> : 'Update Timer'}
                     </button>
                  </div>
-              </div>
-
-              <div className="mt-8 pt-8 border-t border-slate-200">
-                <h4 className="font-bold text-slate-700 text-sm uppercase tracking-wider mb-4">Database Helpers</h4>
-                
-                <div className="space-y-4">
-                    <div className="bg-slate-800 rounded-lg p-4 overflow-x-auto relative group">
-                        <p className="text-slate-400 text-xs mb-2 font-mono">// Manual SQL Insert for Teachers</p>
-                        <p className="text-yellow-400 text-[10px] mb-2 font-bold uppercase">Fix for: relation "teachers" does not exist</p>
-                        <code className="text-green-400 font-mono text-xs block whitespace-pre select-all">
-                        {`INSERT INTO students (name, major, type, passcode, year, roll_number)\nVALUES \n  ('Dr. Wai Phyo Aung', 'EC', 'Teacher', 'TEEC', 'Teacher', 'T-EC-001');`}
-                        </code>
-                    </div>
-
-                    <div className="bg-slate-800 rounded-lg p-4 overflow-x-auto relative group">
-                        <p className="text-slate-400 text-xs mb-2 font-mono">// Manual SQL Insert for Students</p>
-                        <p className="text-cyan-400 text-[10px] mb-2 font-bold uppercase">Correct Format for Mechanical Students</p>
-                        <code className="text-blue-300 font-mono text-xs block whitespace-pre select-all">
-                        {`INSERT INTO students (name, major, year, roll_number, passcode)\nVALUES \n  ('Zay Wunna', 'Mechanical', '1st year', '1', 'RAVK');\n\n-- NOTE: Major must be 'Mechanical', not 'Mech'`}
-                        </code>
-                    </div>
-
-                     <div className="bg-slate-800 rounded-lg p-4 overflow-x-auto relative group">
-                        <p className="text-slate-400 text-xs mb-2 font-mono">// Quick Fix: Update 'Mech' to 'Mechanical'</p>
-                        <code className="text-pink-400 font-mono text-xs block whitespace-pre select-all">
-                        {`UPDATE students SET major = 'Mechanical' WHERE major = 'Mech';`}
-                        </code>
-                    </div>
-                </div>
               </div>
 
               <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 mt-8">
