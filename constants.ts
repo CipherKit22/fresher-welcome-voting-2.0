@@ -1,10 +1,10 @@
 
 import { Candidate, Major, Year, StudentInfo } from "./types";
 
-// Generate unique fruit passcodes for 8 years * 7 majors = 56 classes
-// REORDERED to ensure 3rd Year (idx 2) + CEIT (idx 2) = Index 16 maps to "Grape"
+// Generate unique fruit passcodes for 9 years (Y1-Y6, M1, M2, Teacher is separate) * 7 majors
+// Expanded list to cover new Master classes
 export const FRUITS = [
-  "Apple",       // 0: 1st Year - Civil
+  "Apple",       // 0
   "Apricot",     // 1
   "Avocado",     // 2
   "Banana",      // 3
@@ -20,7 +20,7 @@ export const FRUITS = [
   "Dragonfruit", // 13
   "Durian",      // 14
   "Elderberry",  // 15
-  "Grape",       // 16: 3rd Year - CEIT (Swapped with Fig)
+  "Grape",       // 16
   "Fig",         // 17
   "Gooseberry",  // 18
   "Grapefruit",  // 19
@@ -59,7 +59,17 @@ export const FRUITS = [
   "Watermelon",  // 52
   "Yuzu",        // 53
   "Ackee",       // 54
-  "Bilberry"     // 55
+  "Bilberry",    // 55
+  "Cacao",       // 56 (New)
+  "Feijoa",      // 57 (New)
+  "Huckleberry", // 58 (New)
+  "Jujube",      // 59 (New)
+  "Juniper",     // 60 (New)
+  "Longan",      // 61 (New)
+  "Loquat",      // 62 (New)
+  "Olive",       // 63 (New)
+  "Rambutan",    // 64 (New)
+  "Salak"        // 65 (New)
 ];
 
 // Define Majors available for Students (Engineering only)
@@ -77,6 +87,7 @@ export const STUDENT_MAJORS = [
 export const getClassPasscode = (year: Year, major: Major): string => {
   const yearIndex = Object.values(Year).indexOf(year);
   const majorIndex = Object.values(Major).indexOf(major);
+  // Ensure we don't go out of bounds if Year enum grows
   const flatIndex = (yearIndex * 7 + majorIndex) % FRUITS.length;
   return FRUITS[flatIndex];
 };

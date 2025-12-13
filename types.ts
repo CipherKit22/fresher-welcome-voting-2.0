@@ -7,7 +7,8 @@ export enum Year {
   Y4S2 = "4th year 2nd sem",
   Y5 = "5th year",
   Y6 = "6th year",
-  Master = "Master",
+  Master1 = "Master 1st Year",
+  Master2 = "Master 2nd Year",
   Staff = "Teacher" // Changed from "Staff" to "Teacher"
 }
 
