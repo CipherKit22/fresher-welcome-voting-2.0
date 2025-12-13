@@ -1094,12 +1094,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                                 onChange={(e) => setStudentSearch(e.target.value)}
                                 className="flex-1 bg-slate-50 border border-slate-300 p-2 text-slate-900 text-xs rounded-lg outline-none focus:border-cyan-500" 
                              />
-                             <div className="flex gap-2">
-                                <select value={filterYear} onChange={(e) => setFilterYear(e.target.value)} className="bg-slate-50 border border-slate-300 text-slate-800 text-xs rounded-lg px-2 outline-none">
+                             <div className="flex gap-2 flex-wrap">
+                                <select value={filterYear} onChange={(e) => setFilterYear(e.target.value)} className="bg-slate-50 border border-slate-300 text-slate-800 text-xs rounded-lg px-3 py-2 outline-none h-[34px]">
                                     <option value="All">All Years</option>
                                     {Object.values(Year).filter(y => y !== Year.Staff).map(y => <option key={y} value={y}>{y}</option>)}
                                 </select>
-                                <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as any)} className="bg-slate-50 border border-slate-300 text-slate-800 text-xs rounded-lg px-2 outline-none">
+                                <select value={filterMajor} onChange={(e) => setFilterMajor(e.target.value)} className="bg-slate-50 border border-slate-300 text-slate-800 text-xs rounded-lg px-3 py-2 outline-none h-[34px]">
+                                    <option value="All">All Majors</option>
+                                    {STUDENT_MAJORS.map(m => <option key={m} value={m}>{m}</option>)}
+                                </select>
+                                <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as any)} className="bg-slate-50 border border-slate-300 text-slate-800 text-xs rounded-lg px-3 py-2 outline-none h-[34px]">
                                     <option value="All">Status</option>
                                     <option value="Voted">Voted</option>
                                     <option value="Pending">Pending</option>
