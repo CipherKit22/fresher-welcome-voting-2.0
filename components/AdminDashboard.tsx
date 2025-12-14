@@ -558,7 +558,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
             
             // Find a student/teacher in this class to get the current active passcode
             const type = y === Year.Staff ? 'Teacher' : 'Student';
-            const sample = students.find(s => s.year === y && s.major === m && s.type === type);
+            
+            // Case-insensitive matching for Major to support manual DB inserts like 'ARCHI'
+            const sample = students.find(s => 
+                s.year === y && 
+                s.major?.toLowerCase() === m.toLowerCase() && 
+                s.type === type
+            );
             
             // For students, default from constants, for teachers default is 'TEACHER' if not found
             let defaultCode = 'TEACHER';
@@ -581,10 +587,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
     const yearOrder = Object.values(Year);
     const filtered = students.filter(s => {
       if (s.type === 'Teacher') return false; 
-      const matchSearch = (s.name || '').toLowerCase().includes(studentSearch.toLowerCase()) || 
-                          (s.roll_number || '').toLowerCase().includes(studentSearch.toLowerCase());
+      
+      const searchLower = studentSearch.toLowerCase();
+      const matchSearch = (s.name || '').toLowerCase().includes(searchLower) || 
+                          (s.roll_number || '').toLowerCase().includes(searchLower);
+                          
       const matchYear = filterYear === 'All' || s.year === filterYear;
-      const matchMajor = filterMajor === 'All' || s.major === filterMajor;
+      
+      // Case insensitive major check: 'ARCHI' should match 'Archi'
+      const matchMajor = filterMajor === 'All' || (s.major && s.major.toLowerCase() === filterMajor.toLowerCase());
+      
       const matchStatus = filterStatus === 'All' || 
                           (filterStatus === 'Voted' ? s.has_voted : !s.has_voted);
       return matchSearch && matchYear && matchMajor && matchStatus;
@@ -607,7 +619,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
      return students.filter(s => {
         if (s.type !== 'Teacher') return false;
         const matchSearch = (s.name || '').toLowerCase().includes(teacherSearch.toLowerCase());
-        const matchMajor = filterTeacherMajor === 'All' || s.major === filterTeacherMajor;
+        // Case insensitive match for Teachers as well
+        const matchMajor = filterTeacherMajor === 'All' || (s.major && s.major.toLowerCase() === filterTeacherMajor.toLowerCase());
         return matchSearch && matchMajor;
      });
   }

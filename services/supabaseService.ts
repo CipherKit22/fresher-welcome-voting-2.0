@@ -231,8 +231,8 @@ export const verifyStudent = async (year: Year, major: Major, rollNumber: string
       .from('students')
       .select('*')
       .eq('year', year)
-      .eq('major', major)
-      .eq('roll_number', rollNumber)
+      .ilike('major', major) // Use ilike for case-insensitive match (e.g. Archi vs ARCHI)
+      .ilike('roll_number', rollNumber) // Use ilike for case-insensitive roll number match
       .eq('type', 'Student')
       .maybeSingle(); 
 
@@ -305,7 +305,7 @@ export const verifyTeacher = async (major: Major, name: string, passcode: string
      const { data, error } = await supabase
         .from('students')
         .select('*')
-        .eq('major', major)
+        .ilike('major', major) // Use ilike for case-insensitive match
         .eq('name', name)
         .eq('type', 'Teacher')
         .maybeSingle();
