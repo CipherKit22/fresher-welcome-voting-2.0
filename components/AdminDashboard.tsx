@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Candidate, Major, AdminRole, Year } from '../types';
 import { fetchVoteResults, fetchCandidates, addCandidate, deleteCandidate, fetchStudents, addStudent, deleteStudent, fetchEventStartTime, updateEventStartTime, fetchTotalStudentCount, updateStudentVoteStatus, bulkDeleteStudents, bulkUpdateStudentStatus, resetAllVotes, addTeacher, bulkUpdateClassPasscode } from '../services/supabaseService';
 import { getClassPasscode, STUDENT_MAJORS } from '../constants';
@@ -89,9 +89,18 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   const [totalVotes, setTotalVotes] = useState(0);
   const [totalStudentCount, setTotalStudentCount] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
-  const [eventStartTime, setEventStartTime] = useState('');
+  
+  // Timer States
+  const [dbEventTime, setDbEventTime] = useState(''); // Validated time from DB
+  const [editingEventTime, setEditingEventTime] = useState(''); // Form input state
   const [timeRemaining, setTimeRemaining] = useState<string>('');
   const [isLocked, setIsLocked] = useState(false);
+  
+  // Ref for interval closure
+  const dbEventTimeRef = useRef(dbEventTime);
+  useEffect(() => {
+     dbEventTimeRef.current = dbEventTime;
+  }, [dbEventTime]);
 
   // Granular Loading States
   const [isAddingCandidate, setIsAddingCandidate] = useState(false);
@@ -138,7 +147,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   const [newCandName, setNewCandName] = useState('');
   const [newCandNumber, setNewCandNumber] = useState('');
   const [newCandMajor, setNewCandMajor] = useState<Major>(Major.CEIT);
-  const [newCandYear, setNewCandYear] = useState<string>(Year.Y1);
+  // Removed Year state for candidates
   const [newCandGender, setNewCandGender] = useState<'Male' | 'Female'>('Male');
   const [newCandImageFile, setNewCandImageFile] = useState<File | null>(null);
 
@@ -164,7 +173,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
         updateStatus();
     }, 1000); 
     return () => clearInterval(interval);
-  }, [eventStartTime]);
+  }, []);
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
       setToast({ message, type });
@@ -186,10 +195,18 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   };
 
   const updateStatus = () => {
-    if (!eventStartTime) return;
-    const now = new Date().getTime();
-    const start = new Date(eventStartTime).getTime();
-    const diff = start - now;
+    const timeStr = dbEventTimeRef.current;
+    if (!timeStr) return;
+    
+    // eventStartTime is a Local Time String (YYYY-MM-DDThh:mm)
+    // new Date(eventStartTime) parses it as a Local Date object
+    const targetDate = new Date(timeStr);
+    const now = new Date(); // Local Date Object (representing current time)
+
+    if (isNaN(targetDate.getTime())) return;
+    
+    // getTime() returns UTC timestamp for both, so subtraction is safe
+    const diff = targetDate.getTime() - now.getTime();
 
     if (diff > 0) {
         setIsLocked(true);
@@ -238,27 +255,56 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   };
 
   const loadEventTime = async () => {
-    const time = await fetchEventStartTime();
-    const date = new Date(time);
-    const offset = date.getTimezoneOffset() * 60000; 
-    const localISOTime = (new Date(date.getTime() - offset)).toISOString().slice(0, 16);
-    
-    setEventStartTime(localISOTime);
-    const now = new Date().getTime();
-    setIsLocked(now < date.getTime());
+    try {
+      const timeStr = await fetchEventStartTime(); // Returns ISO string (UTC) from DB
+      if (!timeStr) return;
+      
+      const date = new Date(timeStr);
+      if (isNaN(date.getTime())) return;
+
+      // Manually construct local string for input type="datetime-local"
+      // This ensures we show the user the correct local time regardless of browser offset assumptions
+      const pad = (n: number) => n.toString().padStart(2, '0');
+      const year = date.getFullYear();
+      const month = pad(date.getMonth() + 1);
+      const day = pad(date.getDate());
+      const hours = pad(date.getHours());
+      const minutes = pad(date.getMinutes());
+      
+      const localISOTime = `${year}-${month}-${day}T${hours}:${minutes}`;
+      
+      setEditingEventTime(localISOTime);
+      setDbEventTime(timeStr);
+      
+      // Check lock state immediately
+      const now = new Date().getTime();
+      setIsLocked(now < date.getTime());
+
+    } catch (e) {
+      console.error("Error loading time", e);
+    }
   };
 
   const handleUpdateEventTime = async () => {
     setIsUpdatingTime(true);
     try {
-      const date = new Date(eventStartTime);
+      if (!editingEventTime) throw new Error("Please select a time");
+
+      // eventStartTime is a Local Time String from Input
+      const date = new Date(editingEventTime);
+      if (isNaN(date.getTime())) throw new Error("Invalid Date");
+      
+      // Convert to UTC ISO string for storage
       const isoDate = date.toISOString();
+      
       await updateEventStartTime(isoDate);
       showToast('Event time updated successfully!');
-      loadEventTime();
+      
+      // Reload to ensure sync
+      await loadEventTime();
     } catch (e: any) {
       console.error(e);
-      showToast(`Failed to update time`, 'error');
+      showToast(e.message || `Failed to update time`, 'error');
     } finally {
       setIsUpdatingTime(false);
     }
@@ -268,10 +314,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
       setIsUpdatingTime(true);
       try {
           const now = new Date();
+          // Subtract 5 seconds to ensure we are definitely past the start time
+          // This prevents "00:00:00" flash or race conditions
+          now.setSeconds(now.getSeconds() - 5);
+          
           const isoDate = now.toISOString();
           await updateEventStartTime(isoDate);
+          
           showToast('Voting started immediately!');
-          loadEventTime();
+          await loadEventTime();
       } catch(e) {
           showToast('Failed to start', 'error');
       } finally {
@@ -327,7 +378,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
         name: newCandName,
         candidateNumber: parseInt(newCandNumber) || 0,
         major: newCandMajor,
-        year: newCandYear,
+        year: Year.Y1, // Default all candidates to Y1
         gender: newCandGender,
         image: imageUrl
       });
@@ -987,42 +1038,24 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                         </div>
                      </div>
                      <div>
-                        <label className="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Year</label>
+                        <label className="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Gender</label>
                         <div className="relative">
                             <select 
                                 disabled={isAddingCandidate}
-                                value={newCandYear} 
-                                onChange={e => setNewCandYear(e.target.value)} 
-                                className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-xs rounded-lg appearance-none pr-8"
+                                value={newCandGender} 
+                                onChange={e => setNewCandGender(e.target.value as any)} 
+                                className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-sm rounded-lg appearance-none pr-8"
                             >
-                                {Object.values(Year).filter(y => y !== Year.Staff).map(y => <option key={y} value={y}>{y}</option>)}
+                                <option value="Male">Male</option>
+                                <option value="Female">Female</option>
                             </select>
                             <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-slate-500">
-                                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                                 </svg>
                             </div>
                         </div>
                      </div>
-                  </div>
-                  <div>
-                      <label className="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Gender</label>
-                      <div className="relative">
-                        <select 
-                            disabled={isAddingCandidate}
-                            value={newCandGender} 
-                            onChange={e => setNewCandGender(e.target.value as any)} 
-                            className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-sm rounded-lg appearance-none pr-8"
-                        >
-                            <option value="Male">Male</option>
-                            <option value="Female">Female</option>
-                        </select>
-                        <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-slate-500">
-                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                            </svg>
-                        </div>
-                      </div>
                   </div>
                   <div>
                       <label className="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Photo Upload</label>
@@ -1527,20 +1560,36 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
               <div className="mb-8">
                  <label className="text-xs text-cyan-600 font-bold uppercase block mb-2">Voting Start Time</label>
                  <p className="text-slate-500 text-sm mb-4">Set the exact date and time when the voting countdown ends and students can start selecting candidates.</p>
-                 <div className="flex flex-col sm:flex-row gap-4">
+                 <div className="flex flex-col gap-4">
                     <input 
                        type="datetime-local" 
-                       value={eventStartTime}
-                       onChange={(e) => setEventStartTime(e.target.value)}
+                       value={editingEventTime}
+                       onChange={(e) => setEditingEventTime(e.target.value)}
                        className="bg-slate-50 border border-slate-300 text-slate-900 px-4 py-3 rounded-lg outline-none focus:border-cyan-500 w-full font-mono text-sm"
                     />
-                    <button 
-                       onClick={handleUpdateEventTime}
-                       disabled={isUpdatingTime}
-                       className="bg-cyan-600 hover:bg-cyan-700 text-white font-bold px-6 py-3 rounded-lg uppercase text-xs tracking-wider whitespace-nowrap min-w-[120px] flex justify-center items-center shadow-md shadow-cyan-200"
-                    >
-                       {isUpdatingTime ? <Spinner /> : 'Update Timer'}
-                    </button>
+                    
+                    <div className="flex flex-col sm:flex-row gap-4">
+                        <button 
+                           onClick={handleUpdateEventTime}
+                           disabled={isUpdatingTime}
+                           className="flex-1 bg-cyan-600 hover:bg-cyan-700 text-white font-bold px-6 py-3 rounded-lg uppercase text-xs tracking-wider flex justify-center items-center shadow-md shadow-cyan-200 transition-all"
+                        >
+                           {isUpdatingTime ? <Spinner /> : 'Update Timer'}
+                        </button>
+                        
+                        <button 
+                            onClick={handleStartImmediately}
+                            disabled={isUpdatingTime}
+                            className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold px-6 py-3 rounded-lg uppercase text-xs tracking-wider flex justify-center items-center shadow-md shadow-green-200 transition-all gap-2"
+                        >
+                            {isUpdatingTime ? <Spinner /> : (
+                                <>
+                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                                  Start Now
+                                </>
+                            )}
+                        </button>
+                    </div>
                  </div>
               </div>
 

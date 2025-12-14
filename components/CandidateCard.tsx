@@ -58,7 +58,9 @@ const CandidateCard: React.FC<CandidateCardProps> = ({
               <h3 className="text-lg md:text-xl font-bold text-white font-tech uppercase tracking-wide leading-none mb-1 drop-shadow-md">
                  {candidate.candidateNumber}. {candidate.name}
               </h3>
-              <p className={`${isMale ? 'text-cyan-300' : 'text-pink-300'} font-bold text-xs uppercase tracking-widest drop-shadow-sm`}>{candidate.major}</p>
+              <p className={`${isMale ? 'text-cyan-300' : 'text-pink-300'} font-bold text-xs uppercase tracking-widest drop-shadow-sm`}>
+                {candidate.major}
+              </p>
             </div>
           </div>
           

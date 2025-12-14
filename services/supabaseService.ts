@@ -159,6 +159,43 @@ export const deleteCandidate = async (id: string) => {
 
 // --- Students / Teachers ---
 
+export const checkStudentRegistration = async (year: string, major: string, query: string) => {
+  try {
+    if (query.length < 2) return [];
+
+    if (isMockMode || !supabase) {
+      // Mock search
+      return MOCK_STUDENTS.filter(s =>
+        s.type === 'Student' &&
+        s.year === year &&
+        s.major === major &&
+        (s.name?.toLowerCase().includes(query.toLowerCase()) || s.rollNumber.includes(query))
+      ).map(s => ({ name: s.name, rollNumber: s.rollNumber, hasVoted: s.hasVoted }));
+    }
+
+    const { data, error } = await supabase
+      .from('students')
+      .select('name, roll_number, has_voted')
+      .eq('type', 'Student')
+      .eq('year', year)
+      .eq('major', major)
+      .or(`name.ilike.%${query}%,roll_number.ilike.%${query}%`)
+      .limit(20);
+
+    if (error) throw error;
+    
+    return data.map((s: any) => ({
+        name: s.name,
+        rollNumber: s.roll_number,
+        hasVoted: s.has_voted
+    }));
+
+  } catch (err) {
+    console.error("checkStudentRegistration error:", err);
+    return [];
+  }
+};
+
 export const verifyStudent = async (year: Year, major: Major, rollNumber: string, passcode: string): Promise<{ success: boolean; student?: StudentInfo; message?: string }> => {
   try {
     if (isMockMode || !supabase) {

@@ -1,13 +1,20 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Major, Year, StudentInfo } from '../types';
-import { verifyStudent, verifyTeacher, fetchTeachers } from '../services/supabaseService';
+import { verifyStudent, verifyTeacher, fetchTeachers, checkStudentRegistration } from '../services/supabaseService';
 import { STUDENT_MAJORS } from '../constants';
 
 interface LoginProps {
   onLogin: (student: StudentInfo) => void;
   onAdminClick: () => void;
 }
+
+const Spinner: React.FC = () => (
+  <svg className="animate-spin h-4 w-4 text-current inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+  </svg>
+);
 
 const Login: React.FC<LoginProps> = ({ onLogin, onAdminClick }) => {
   const [activeTab, setActiveTab] = useState<'student' | 'teacher'>('student');
@@ -18,6 +25,14 @@ const Login: React.FC<LoginProps> = ({ onLogin, onAdminClick }) => {
   const [error, setError] = useState('');
   const [verifiedUser, setVerifiedUser] = useState<StudentInfo | null>(null);
   const [showTutorial, setShowTutorial] = useState(false);
+  
+  // Registration Check Modal
+  const [showCheckReg, setShowCheckReg] = useState(false);
+  const [checkYear, setCheckYear] = useState<Year>(Year.Y1);
+  const [checkMajor, setCheckMajor] = useState<Major>(Major.Civil);
+  const [checkQuery, setCheckQuery] = useState('');
+  const [checkResults, setCheckResults] = useState<{name: string, rollNumber: string, hasVoted: boolean}[]>([]);
+  const [isChecking, setIsChecking] = useState(false);
 
   // Student Form
   const [year, setYear] = useState<Year>(Year.Y1);
@@ -38,6 +53,22 @@ const Login: React.FC<LoginProps> = ({ onLogin, onAdminClick }) => {
         fetchTeachers(major).then(names => setTeacherList(names));
     }
   }, [major, activeTab]);
+
+  // Handle Search in Check Registration
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(async () => {
+        if (checkQuery.length >= 2) {
+            setIsChecking(true);
+            const results = await checkStudentRegistration(checkYear, checkMajor, checkQuery);
+            setCheckResults(results);
+            setIsChecking(false);
+        } else {
+            setCheckResults([]);
+        }
+    }, 500);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [checkQuery, checkYear, checkMajor]);
 
   // Filter teachers
   const filteredTeachers = teacherList.filter(name => 
@@ -256,6 +287,18 @@ const Login: React.FC<LoginProps> = ({ onLogin, onAdminClick }) => {
                         </button>
                     </div>
                 </div>
+                
+                {/* Check Registration Link */}
+                <div className="flex justify-center pt-2">
+                    <button 
+                        type="button" 
+                        onClick={() => setShowCheckReg(true)} 
+                        className="text-cyan-600 text-xs font-bold uppercase tracking-wide hover:underline flex items-center gap-1"
+                    >
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        Check Registration Status
+                    </button>
+                </div>
             </div>
           )}
 
@@ -386,6 +429,62 @@ const Login: React.FC<LoginProps> = ({ onLogin, onAdminClick }) => {
              </p>
           </div>
         </form>
+
+        {/* Check Registration Modal */}
+        {showCheckReg && (
+            <div className="absolute inset-0 z-40 bg-white/95 backdrop-blur-md flex flex-col p-6 animate-fadeIn rounded-2xl">
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-xl font-tech text-slate-800 uppercase tracking-wider">Registration Check</h3>
+                    <button onClick={() => setShowCheckReg(false)} className="text-slate-400 hover:text-red-500 transition-colors">
+                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                </div>
+
+                <div className="space-y-4 mb-4">
+                    <div className="grid grid-cols-2 gap-2">
+                        <select value={checkYear} onChange={(e) => setCheckYear(e.target.value as Year)} className="bg-slate-50 border border-slate-300 text-slate-800 p-2 rounded-lg text-xs outline-none focus:border-cyan-500">
+                            {Object.values(Year).filter(y => y !== Year.Staff).map(y => <option key={y} value={y}>{y}</option>)}
+                        </select>
+                        <select value={checkMajor} onChange={(e) => setCheckMajor(e.target.value as Major)} className="bg-slate-50 border border-slate-300 text-slate-800 p-2 rounded-lg text-xs outline-none focus:border-cyan-500">
+                            {STUDENT_MAJORS.map(m => <option key={m} value={m}>{m}</option>)}
+                        </select>
+                    </div>
+                    <div className="relative">
+                        <input 
+                            type="text" 
+                            placeholder="Type Name or Roll Number..." 
+                            value={checkQuery}
+                            onChange={(e) => setCheckQuery(e.target.value)}
+                            className="w-full bg-slate-50 border border-slate-300 text-slate-800 p-3 rounded-lg text-sm outline-none focus:border-cyan-500"
+                            autoFocus
+                        />
+                        <div className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400">
+                            {isChecking ? <Spinner /> : <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>}
+                        </div>
+                    </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 border-t border-slate-100 pt-2">
+                    {checkQuery.length < 2 ? (
+                        <p className="text-center text-slate-400 text-xs mt-4">Type at least 2 characters to search.</p>
+                    ) : checkResults.length > 0 ? (
+                        checkResults.map((res, idx) => (
+                            <div key={idx} className="bg-slate-50 p-3 rounded-lg border border-slate-200 flex justify-between items-center">
+                                <div>
+                                    <p className="font-bold text-slate-800 text-sm">{res.name}</p>
+                                    <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Roll: {res.rollNumber}</p>
+                                </div>
+                                <span className={`text-[10px] font-bold px-2 py-1 rounded border uppercase tracking-wider ${res.hasVoted ? 'bg-green-50 text-green-600 border-green-200' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
+                                    {res.hasVoted ? 'Voted' : 'Pending'}
+                                </span>
+                            </div>
+                        ))
+                    ) : (
+                        !isChecking && <p className="text-center text-slate-400 text-xs mt-4">No matching students found.</p>
+                    )}
+                </div>
+            </div>
+        )}
 
         {/* Tutorial Overlay */}
         {showTutorial && (
