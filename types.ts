@@ -9,7 +9,7 @@ export enum Year {
   Y6 = "6th year",
   Master1 = "Master 1st Year",
   Master2 = "Master 2nd Year",
-  Staff = "Teacher" // Changed from "Staff" to "Teacher"
+  Staff = "Teacher"
 }
 
 export enum Major {
@@ -35,7 +35,7 @@ export enum AdminRole {
 export interface StudentInfo {
   id?: string; // Database UUID
   name?: string;
-  type?: 'Student' | 'Teacher'; // Added type
+  type?: 'Student' | 'Teacher';
   year: Year | string;
   major: Major | string;
   rollNumber: string;
