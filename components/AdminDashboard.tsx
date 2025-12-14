@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Candidate, Major, AdminRole, Year } from '../types';
-import { fetchVoteResults, fetchCandidates, addCandidate, deleteCandidate, fetchStudents, addStudent, deleteStudent, fetchEventStartTime, updateEventStartTime, fetchTotalStudentCount, updateStudentVoteStatus, bulkDeleteStudents, bulkUpdateStudentStatus, resetAllVotes, addTeacher, bulkUpdateClassPasscode } from '../services/supabaseService';
+import { fetchVoteResults, fetchCandidates, addCandidate, deleteCandidate, fetchStudents, addStudent, deleteStudent, fetchEventStartTime, updateEventStartTime, fetchTotalStudentCount, fetchTotalTeacherCount, updateStudentVoteStatus, bulkDeleteStudents, bulkUpdateStudentStatus, resetAllVotes, addTeacher, bulkUpdateClassPasscode } from '../services/supabaseService';
 import { getClassPasscode, STUDENT_MAJORS } from '../constants';
 
 interface AdminDashboardProps {
@@ -88,6 +88,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   });
   const [totalVotes, setTotalVotes] = useState(0);
   const [totalStudentCount, setTotalStudentCount] = useState(0);
+  const [totalTeacherCount, setTotalTeacherCount] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   
   // Timer States
@@ -223,9 +224,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   const loadResultsOnly = async () => {
     const { tally, totalVotes } = await fetchVoteResults();
     const totalStudents = await fetchTotalStudentCount();
+    const totalTeachers = await fetchTotalTeacherCount();
     setVotes(tally);
     setTotalVotes(totalVotes);
     setTotalStudentCount(totalStudents);
+    setTotalTeacherCount(totalTeachers);
   };
 
   const loadCandidates = async () => {
@@ -887,6 +890,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
             </p>
             <p className="text-slate-500 font-medium text-sm">
               Registered Students: <span className="text-slate-900 font-bold">{totalStudentCount}</span>
+            </p>
+            <p className="text-slate-500 font-medium text-sm">
+              Teachers: <span className="text-slate-900 font-bold">{totalTeacherCount}</span>
             </p>
           </div>
         </div>

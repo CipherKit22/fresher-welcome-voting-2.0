@@ -178,7 +178,7 @@ export const checkStudentRegistration = async (year: string, major: string, quer
       .select('name, roll_number, has_voted')
       .eq('type', 'Student')
       .eq('year', year)
-      .eq('major', major)
+      .ilike('major', major) // Changed from .eq to .ilike for case-insensitive matching
       .or(`name.ilike.%${query}%,roll_number.ilike.%${query}%`)
       .limit(20);
 
@@ -419,6 +419,23 @@ export const fetchTotalStudentCount = async (): Promise<number> => {
       .from('students')
       .select('*', { count: 'exact', head: true })
       .eq('type', 'Student');
+
+    if (error) return 0;
+    return count || 0;
+  } catch (err) {
+    return 0;
+  }
+};
+
+export const fetchTotalTeacherCount = async (): Promise<number> => {
+  try {
+    if (isMockMode || !supabase) {
+      return MOCK_STUDENTS.filter(s => s.type === 'Teacher').length;
+    }
+    const { count, error } = await supabase
+      .from('students')
+      .select('*', { count: 'exact', head: true })
+      .eq('type', 'Teacher');
 
     if (error) return 0;
     return count || 0;
