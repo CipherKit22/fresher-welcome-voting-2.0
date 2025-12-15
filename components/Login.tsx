@@ -7,6 +7,7 @@ import { STUDENT_MAJORS } from '../constants';
 interface LoginProps {
   onLogin: (student: StudentInfo) => void;
   onAdminClick: () => void;
+  onGuestClick: () => void;
 }
 
 const Spinner: React.FC = () => (
@@ -16,7 +17,7 @@ const Spinner: React.FC = () => (
   </svg>
 );
 
-const Login: React.FC<LoginProps> = ({ onLogin, onAdminClick }) => {
+const Login: React.FC<LoginProps> = ({ onLogin, onAdminClick, onGuestClick }) => {
   const [activeTab, setActiveTab] = useState<'student' | 'teacher'>('student');
   
   // Common
@@ -411,13 +412,23 @@ const Login: React.FC<LoginProps> = ({ onLogin, onAdminClick }) => {
             </div>
           )}
 
-          <button 
-            type="submit"
-            disabled={loading}
-            className="w-full bg-cyan-600 hover:bg-cyan-700 text-white font-tech font-bold py-4 uppercase tracking-widest shadow-lg shadow-cyan-200 transition-all duration-300 rounded-lg disabled:opacity-50 mt-4"
-          >
-            {loading ? 'Checking...' : 'Login'}
-          </button>
+          <div className="space-y-3 mt-4">
+            <button 
+                type="submit"
+                disabled={loading}
+                className="w-full bg-cyan-600 hover:bg-cyan-700 text-white font-tech font-bold py-4 uppercase tracking-widest shadow-lg shadow-cyan-200 transition-all duration-300 rounded-lg disabled:opacity-50"
+            >
+                {loading ? 'Checking...' : 'Login'}
+            </button>
+
+            <button 
+                type="button"
+                onClick={onGuestClick}
+                className="w-full border-2 border-slate-300 hover:border-slate-400 text-slate-500 hover:text-slate-600 font-bold py-3 uppercase text-xs tracking-widest transition-all rounded-lg bg-white"
+            >
+                Browse as Guest
+            </button>
+          </div>
           
           {/* VPN Warning - Moved here as requested */}
           <div className="flex justify-center mt-2">

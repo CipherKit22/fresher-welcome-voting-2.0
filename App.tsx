@@ -34,6 +34,19 @@ const App: React.FC = () => {
     }
   };
 
+  const handleGuestLogin = () => {
+    const guestUser: StudentInfo = {
+      name: "Guest",
+      type: 'Guest',
+      year: "Guest",
+      major: "Guest",
+      rollNumber: "0",
+      hasVoted: false
+    };
+    setCurrentStudent(guestUser);
+    changeView('student-voting');
+  };
+
   const handleSubmitVotes = async (votes: Votes) => {
     if (!currentStudent || !currentStudent.id) return;
     
@@ -123,6 +136,7 @@ const App: React.FC = () => {
           <Login 
             onLogin={handleLogin} 
             onAdminClick={() => changeView('admin-login')}
+            onGuestClick={handleGuestLogin}
           />
         )}
 
@@ -143,6 +157,8 @@ const App: React.FC = () => {
         {view === 'student-voting' && (
           <Ballot 
             onSubmit={handleSubmitVotes} 
+            isGuest={currentStudent?.type === 'Guest'}
+            onLoginRequest={handleLogout}
           />
         )}
 

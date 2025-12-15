@@ -35,7 +35,7 @@ export enum AdminRole {
 export interface StudentInfo {
   id?: string; // Database UUID
   name?: string;
-  type?: 'Student' | 'Teacher';
+  type?: 'Student' | 'Teacher' | 'Guest';
   year: Year | string;
   major: Major | string;
   rollNumber: string;
