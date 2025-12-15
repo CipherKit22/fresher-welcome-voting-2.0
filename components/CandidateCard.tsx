@@ -53,12 +53,13 @@ const CandidateCard: React.FC<CandidateCardProps> = ({
             className={`w-full h-full object-cover transition-all duration-500 ${isSelected ? 'scale-105 saturate-125' : 'grayscale-[0.1] group-hover:grayscale-0'}`}
           />
           
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-900/90 via-slate-900/20 to-transparent flex flex-col justify-end p-4">
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-900/90 via-slate-900/20 to-transparent flex flex-col justify-end p-3 md:p-4">
             <div>
-              <h3 className="text-lg md:text-xl font-bold text-white font-tech uppercase tracking-wide leading-none mb-1 drop-shadow-md">
-                 {candidate.candidateNumber}. {candidate.name}
+              <h3 className="text-sm sm:text-base md:text-xl font-bold text-white font-tech uppercase tracking-wide leading-tight mb-0.5 md:mb-1 drop-shadow-md">
+                 <span className="opacity-80 text-xs md:text-sm mr-1">#{candidate.candidateNumber}</span>
+                 {candidate.name}
               </h3>
-              <p className={`${isMale ? 'text-cyan-300' : 'text-pink-300'} font-bold text-xs uppercase tracking-widest drop-shadow-sm`}>
+              <p className={`${isMale ? 'text-cyan-300' : 'text-pink-300'} font-bold text-[10px] md:text-xs uppercase tracking-widest drop-shadow-sm`}>
                 {candidate.major}
               </p>
             </div>
