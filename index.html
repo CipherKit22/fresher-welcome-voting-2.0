@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -169,6 +170,20 @@
 </head>
   <body>
     <div id="root"></div>
+    <script>
+      // Disable Right Click and Inspect Element Shortcuts
+      document.addEventListener('contextmenu', (e) => e.preventDefault());
+      document.addEventListener('keydown', (e) => {
+        // F12
+        if(e.key === 'F12') { e.preventDefault(); return false; }
+        // Ctrl+Shift+I (Inspector)
+        if(e.ctrlKey && e.shiftKey && e.key === 'I') { e.preventDefault(); return false; }
+        // Ctrl+Shift+J (Console)
+        if(e.ctrlKey && e.shiftKey && e.key === 'J') { e.preventDefault(); return false; }
+        // Ctrl+U (View Source)
+        if(e.ctrlKey && e.key === 'u') { e.preventDefault(); return false; }
+      });
+    </script>
     <!-- Critical: This script tag is required to load the React application -->
     <script type="module" src="./index.tsx"></script>
   </body>

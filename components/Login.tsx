@@ -426,7 +426,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, onAdminClick, onGuestClick }) =>
                 onClick={onGuestClick}
                 className="w-full border-2 border-slate-300 hover:border-slate-400 text-slate-500 hover:text-slate-600 font-bold py-3 uppercase text-xs tracking-widest transition-all rounded-lg bg-white"
             >
-                Browse as Guest
+                Guest Mode
             </button>
           </div>
           
