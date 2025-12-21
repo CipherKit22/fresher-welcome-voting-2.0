@@ -685,9 +685,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   // Determine available tabs based on permissions
   const availableTabs = [
     ...(canViewResults ? ['results'] : []),
-    ...(canViewSensitiveData ? ['students', 'passcodes'] : []), // Removed teachers for volunteer if simplified view desired, but prompt implied list. I'll remove teachers for volunteer to keep it simple as they asked for student list. Actually, prompt said "find student data list". I'll keep it simple and omit teachers/candidates/settings for volunteer.
-    // If admin is volunteer, remove 'teachers'. If superadmin or admin, show 'teachers'.
-    ...(canViewSensitiveData && adminRole !== AdminRole.Volunteer ? ['teachers'] : []),
+    ...(canViewSensitiveData ? ['students', 'passcodes', 'teachers'] : []), // Included teachers for Volunteer (via canViewSensitiveData)
     ...(canEdit ? ['candidates', 'settings'] : [])
   ];
 
@@ -1071,7 +1069,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                 </div>
             </div>
         )}
-        {!isLoading && activeTab === 'teachers' && canViewSensitiveData && adminRole !== AdminRole.Volunteer && (
+        {!isLoading && activeTab === 'teachers' && canViewSensitiveData && (
              <div className="grid lg:grid-cols-3 gap-8 animate-fadeIn">
                <div className={canEdit ? "lg:col-span-2" : "lg:col-span-3"}>
                   <div className="glass-panel bg-white p-4 mb-4 rounded-xl flex flex-col gap-4 border border-slate-200">

@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Login from './components/Login';
 import Ballot from './components/Ballot';
 import VotingAssistant from './components/VotingAssistant';
@@ -15,6 +15,15 @@ const App: React.FC = () => {
   const [currentStudent, setCurrentStudent] = useState<StudentInfo | null>(null);
   const [adminRole, setAdminRole] = useState<AdminRole>(AdminRole.Admin);
   const [isPageLoading, setIsPageLoading] = useState(false);
+
+  // Check for saved admin session on mount
+  useEffect(() => {
+    const savedRole = localStorage.getItem('adminRole');
+    if (savedRole) {
+      setAdminRole(savedRole as AdminRole);
+      setView('admin-dashboard');
+    }
+  }, []);
 
   // Helper to trigger page loader on view change
   const changeView = (newView: AppView) => {
@@ -63,8 +72,14 @@ const App: React.FC = () => {
     changeView('student-login');
   };
 
+  const handleAdminLogout = () => {
+    localStorage.removeItem('adminRole');
+    changeView('student-login');
+  };
+
   const handleAdminLoginSuccess = (role: AdminRole) => {
     setAdminRole(role);
+    localStorage.setItem('adminRole', role);
     changeView('admin-dashboard');
   };
 
@@ -150,7 +165,7 @@ const App: React.FC = () => {
         {view === 'admin-dashboard' && (
           <AdminDashboard 
             adminRole={adminRole}
-            onLogout={() => changeView('student-login')}
+            onLogout={handleAdminLogout}
           />
         )}
 
