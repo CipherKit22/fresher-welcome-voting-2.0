@@ -23,6 +23,9 @@ const Ballot: React.FC<BallotProps> = ({ onSubmit, isGuest, onLoginRequest }) =>
   const [isEventStarted, setIsEventStarted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Modal State for Bio
+  const [infoCandidate, setInfoCandidate] = useState<Candidate | null>(null);
 
   // Load Data
   useEffect(() => {
@@ -64,12 +67,7 @@ const Ballot: React.FC<BallotProps> = ({ onSubmit, isGuest, onLoginRequest }) =>
   };
 
   const handleCandidateClick = (candidateId: string) => {
-    // In guest mode, clicking doesn't select, maybe just does nothing or expands image (future feature)
-    // For now, let's allow selection just so guests can see the UI, but disable submit.
     if (isSubmitting) return;
-    
-    // Optional: If strict guest mode where clicking does nothing, return here.
-    // return; 
     
     setVotes(prev => {
       if (activeSection === 'Male') {
@@ -114,6 +112,68 @@ const Ballot: React.FC<BallotProps> = ({ onSubmit, isGuest, onLoginRequest }) =>
   return (
     <div className="w-full max-w-[1400px] mx-auto px-4 py-8 relative pb-40 md:pb-32">
       
+      {/* Bio Modal */}
+      {infoCandidate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-fadeIn" onClick={() => setInfoCandidate(null)}>
+          <div className="bg-white w-full max-w-lg rounded-2xl overflow-hidden shadow-2xl relative border border-slate-200" onClick={e => e.stopPropagation()}>
+             
+             {/* Close Button */}
+             <button 
+               onClick={() => setInfoCandidate(null)}
+               className="absolute top-4 right-4 z-10 w-8 h-8 rounded-full bg-black/30 text-white flex items-center justify-center hover:bg-black/50 transition-colors backdrop-blur-sm"
+             >
+               ✕
+             </button>
+
+             {/* Header Image */}
+             <div className="relative h-64 sm:h-80 w-full">
+                <img 
+                  src={infoCandidate.image} 
+                  alt={infoCandidate.name} 
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-transparent"></div>
+                <div className="absolute bottom-0 left-0 p-6">
+                   <span className={`inline-block px-3 py-1 rounded text-[10px] font-bold uppercase tracking-widest text-white mb-2 ${infoCandidate.gender === 'Male' ? 'bg-cyan-600' : 'bg-pink-600'}`}>
+                      {infoCandidate.major}
+                   </span>
+                   <h2 className="text-3xl font-tech text-white uppercase font-bold drop-shadow-md">
+                      <span className="text-lg opacity-80 mr-2">#{infoCandidate.candidateNumber}</span>
+                      {infoCandidate.name}
+                   </h2>
+                </div>
+             </div>
+
+             {/* Bio Content */}
+             <div className="p-8 max-h-[40vh] overflow-y-auto custom-scrollbar">
+                <h4 className="text-slate-400 font-bold text-xs uppercase tracking-widest mb-3">About Candidate</h4>
+                {infoCandidate.bio ? (
+                  <p className="text-slate-700 leading-relaxed whitespace-pre-line text-sm md:text-base">
+                    {infoCandidate.bio}
+                  </p>
+                ) : (
+                  <p className="text-slate-400 italic text-sm">No biography available.</p>
+                )}
+             </div>
+
+             {/* Footer Action */}
+             {!isGuest && !isSelected(infoCandidate.id) && !isSubmitting && isEventStarted && (
+                <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end">
+                   <button 
+                     onClick={() => {
+                        handleCandidateClick(infoCandidate.id);
+                        setInfoCandidate(null);
+                     }}
+                     className={`px-6 py-2 rounded-lg font-bold text-xs uppercase tracking-widest text-white shadow-md transition-all ${infoCandidate.gender === 'Male' ? 'bg-cyan-600 hover:bg-cyan-700' : 'bg-pink-600 hover:bg-pink-700'}`}
+                   >
+                      Vote for {infoCandidate.name.split(' ')[0]}
+                   </button>
+                </div>
+             )}
+          </div>
+        </div>
+      )}
+
       {isGuest && (
         <div className="mb-4 bg-yellow-50 border-b border-yellow-200 px-4 py-3 text-center sticky top-[80px] z-30 rounded-lg shadow-sm">
             <p className="text-yellow-800 text-xs font-bold uppercase tracking-widest flex justify-center items-center gap-2">
@@ -168,6 +228,7 @@ const Ballot: React.FC<BallotProps> = ({ onSubmit, isGuest, onLoginRequest }) =>
               isSelected={isSelected(candidate.id)}
               isDisabled={isSubmitting} 
               onSelect={handleCandidateClick}
+              onInfoClick={setInfoCandidate}
             />
           );
         })}

@@ -7,13 +7,15 @@ interface CandidateCardProps {
   isSelected: boolean;
   isDisabled: boolean;
   onSelect: (id: string) => void;
+  onInfoClick?: (candidate: Candidate) => void;
 }
 
 const CandidateCard: React.FC<CandidateCardProps> = ({ 
   candidate, 
   isSelected, 
   isDisabled, 
-  onSelect
+  onSelect,
+  onInfoClick
 }) => {
   const isMale = candidate.gender === 'Male';
   const themeColor = isMale ? 'cyan' : 'pink';
@@ -37,6 +39,23 @@ const CandidateCard: React.FC<CandidateCardProps> = ({
         }
       `}>
         
+        {/* Info Button - Only show if bio exists */}
+        {candidate.bio && onInfoClick && !isDisabled && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation(); // Prevent selecting the candidate when clicking info
+              onInfoClick(candidate);
+            }}
+            className="absolute top-3 left-3 z-30 w-8 h-8 rounded-full bg-black/20 backdrop-blur-md border border-white/30 text-white flex items-center justify-center hover:bg-white hover:text-slate-900 transition-all shadow-sm hover:scale-110"
+            title="Read Bio"
+            type="button"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </button>
+        )}
+
         {/* Selection Marker */}
         {isSelected && (
            <div className={`absolute top-3 right-3 z-20 ${isMale ? 'bg-cyan-500' : 'bg-pink-500'} text-white w-8 h-8 rounded-full flex items-center justify-center font-bold text-lg shadow-md animate-bounce`}>
