@@ -163,6 +163,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   const [newTeacherPasscode, setNewTeacherPasscode] = useState('');
   const [showTeacherPasscode, setShowTeacherPasscode] = useState(false);
 
+  const canEdit = adminRole === AdminRole.SuperAdmin;
+  const canViewSensitiveData = adminRole === AdminRole.SuperAdmin || adminRole === AdminRole.Volunteer;
+
   useEffect(() => {
     loadData();
     const interval = setInterval(() => {
@@ -182,7 +185,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
       await Promise.all([
         loadResultsOnly(),
         loadCandidates(),
-        adminRole === AdminRole.SuperAdmin ? loadStudents() : Promise.resolve(),
+        canViewSensitiveData ? loadStudents() : Promise.resolve(),
         loadEventTime()
       ]);
     } catch (e) {
@@ -226,7 +229,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   };
 
   const loadStudents = async () => {
-    if (adminRole !== AdminRole.SuperAdmin) return;
+    if (!canViewSensitiveData) return;
     const data = await fetchStudents();
     setStudents(data || []);
   };
@@ -327,7 +330,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
 
   const handleAddCandidate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (adminRole !== AdminRole.SuperAdmin) return;
+    if (!canEdit) return;
     setIsAddingCandidate(true);
     
     try {
@@ -381,7 +384,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   };
 
   const promptDeleteCandidate = (id: string, name: string) => {
-    if (adminRole !== AdminRole.SuperAdmin) return;
+    if (!canEdit) return;
     setDeleteModal({ type: 'candidate', id, name });
   };
 
@@ -449,7 +452,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   }
 
   const handleStudentStatusChange = async (id: string, hasVoted: boolean) => {
-    if (adminRole !== AdminRole.SuperAdmin) return;
+    if (!canEdit) return;
     try {
       await updateStudentVoteStatus(id, hasVoted);
       await loadStudents();
@@ -517,7 +520,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
           await bulkUpdateClassPasscode(editingPasscode.year, editingPasscode.major, editingPasscode.code);
           showToast(`Passcode updated for ${editingPasscode.year} ${editingPasscode.major}`);
           setEditingPasscode(null);
-          if (adminRole === AdminRole.SuperAdmin) loadStudents();
+          if (canViewSensitiveData) loadStudents();
       } catch (e) {
           showToast('Failed to update passcode', 'error');
       } finally {
@@ -797,7 +800,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
         <div className="flex-1">
           <div className="flex items-center gap-3 flex-wrap">
               <h1 className="text-2xl font-tech text-slate-800 uppercase tracking-wider flex items-center gap-3">
-                {adminRole === AdminRole.SuperAdmin ? 'Super Admin' : 'Admin View'}
+                {adminRole === AdminRole.SuperAdmin ? 'Super Admin' : (adminRole === AdminRole.Volunteer ? 'Volunteer View' : 'Admin View')}
               </h1>
               {adminRole === AdminRole.SuperAdmin && (
                   <div className="flex items-center gap-2">
@@ -823,7 +826,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
       </div>
 
       <div className="mb-8 p-1 bg-slate-200/50 rounded-xl inline-flex overflow-hidden flex-wrap gap-1">
-        {['results', ...(adminRole === AdminRole.SuperAdmin ? ['candidates', 'students', 'teachers', 'passcodes', 'settings'] : [])].map((tab) => (
+        {['results', ...(canViewSensitiveData ? ['students', 'teachers', 'passcodes'] : []), ...(canEdit ? ['candidates', 'settings'] : [])].map((tab) => (
             <button key={tab} onClick={() => setActiveTab(tab as any)} className={`px-6 py-2.5 text-xs font-bold uppercase tracking-widest rounded-lg transition-all duration-300 ${activeTab === tab ? 'bg-white text-cyan-700 shadow-md transform scale-100' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}>{tab}</button>
         ))}
       </div>
@@ -860,7 +863,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
             </div>
         )}
 
-        {!isLoading && activeTab === 'candidates' && (
+        {!isLoading && activeTab === 'candidates' && canEdit && (
             <div className="grid lg:grid-cols-3 gap-8 animate-fadeIn">
             <div className="lg:col-span-2 grid sm:grid-cols-2 gap-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
                 {candidates.map(candidate => (
@@ -937,7 +940,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
             </div>
         )}
         
-        {!isLoading && activeTab === 'students' && adminRole === AdminRole.SuperAdmin && (
+        {!isLoading && activeTab === 'students' && canViewSensitiveData && (
             <div className="animate-fadeIn space-y-6">
                 <div className="glass-panel bg-white p-4 rounded-xl flex flex-col md:flex-row justify-between items-center gap-4 border border-slate-200">
                     <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-start">
@@ -954,8 +957,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                          {isRefreshing ? <Spinner /> : <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>}
                     </button>
                 </div>
-                <div className="grid lg:grid-cols-3 gap-8">
-                  <div className="lg:col-span-2">
+                <div className={`grid ${canEdit ? 'lg:grid-cols-3' : 'lg:grid-cols-1'} gap-8`}>
+                  <div className={canEdit ? "lg:col-span-2" : ""}>
                      <div className="glass-panel bg-white p-4 mb-4 rounded-xl flex flex-col gap-4 border border-slate-200">
                          <div className="flex flex-col md:flex-row gap-4">
                              <input type="text" placeholder="Search Name or Roll No..." value={studentSearch} onChange={(e) => setStudentSearch(e.target.value)} className="flex-1 bg-slate-50 border border-slate-300 p-2 text-slate-900 text-xs rounded-lg outline-none focus:border-cyan-500" />
@@ -965,7 +968,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                                 <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as any)} className="bg-slate-50 border border-slate-300 text-slate-800 text-xs rounded-lg px-3 py-2 outline-none h-[34px]"><option value="All">Status</option><option value="Voted">Voted</option><option value="Pending">Pending</option></select>
                              </div>
                          </div>
-                         {selectedStudentIds.size > 0 && (
+                         {canEdit && selectedStudentIds.size > 0 && (
                             <div className="flex justify-between items-center bg-cyan-50 p-2 rounded-lg border border-cyan-100 animate-fadeIn">
                                 <span className="text-xs font-bold text-cyan-800 uppercase tracking-wider ml-2">{selectedStudentIds.size} Selected</span>
                                 <div className="flex gap-2">
@@ -980,68 +983,78 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                          <table className="w-full text-left text-sm text-slate-600">
                             <thead className="text-xs uppercase bg-slate-100 text-slate-500 sticky top-0 z-10 backdrop-blur-md">
                               <tr>
-                                  <th className="px-4 py-3 w-10"><input type="checkbox" onChange={() => toggleSelectAll(displayedStudents.map(s => s.id))} checked={allDisplayedSelected} className="rounded border-slate-300 text-cyan-600 focus:ring-cyan-500" /></th>
+                                  {canEdit && <th className="px-4 py-3 w-10"><input type="checkbox" onChange={() => toggleSelectAll(displayedStudents.map(s => s.id))} checked={allDisplayedSelected} className="rounded border-slate-300 text-cyan-600 focus:ring-cyan-500" /></th>}
                                   <th className="px-4 py-3 whitespace-nowrap cursor-pointer hover:bg-slate-200" onClick={() => setStudentSort('roll')}>Roll No</th>
                                   <th className="px-4 py-3 whitespace-nowrap cursor-pointer hover:bg-slate-200" onClick={() => setStudentSort('name')}>Name</th>
                                   <th className="px-4 py-3 whitespace-nowrap">Major / Year</th>
+                                  <th className="px-4 py-3 whitespace-nowrap">Passcode</th>
                                   <th className="px-4 py-3 whitespace-nowrap">Status</th>
-                                  <th className="px-4 py-3 whitespace-nowrap text-right">Action</th>
+                                  {canEdit && <th className="px-4 py-3 whitespace-nowrap text-right">Action</th>}
                               </tr>
                             </thead>
                             <tbody>
                                 {displayedStudents.length > 0 ? (
                                     displayedStudents.map((stud) => (
                                         <tr key={stud.id} className={`border-b border-slate-100 hover:bg-slate-50 ${selectedStudentIds.has(stud.id) ? 'bg-cyan-50/50' : ''}`}>
-                                            <td className="px-4 py-3"><input type="checkbox" checked={selectedStudentIds.has(stud.id)} onChange={() => toggleStudentSelection(stud.id)} className="rounded border-slate-300 text-cyan-600 focus:ring-cyan-500" /></td>
+                                            {canEdit && <td className="px-4 py-3"><input type="checkbox" checked={selectedStudentIds.has(stud.id)} onChange={() => toggleStudentSelection(stud.id)} className="rounded border-slate-300 text-cyan-600 focus:ring-cyan-500" /></td>}
                                             <td className="px-4 py-3 font-mono text-xs font-bold text-slate-500">{stud.roll_number}</td>
                                             <td className="px-4 py-3 font-bold text-slate-800 whitespace-nowrap">{stud.name}</td>
                                             <td className="px-4 py-3 text-xs"><div className="flex flex-col"><span className="font-bold text-slate-600">{stud.major}</span><span className="text-slate-400">{stud.year}</span></div></td>
-                                            <td className="px-4 py-3"><button onClick={() => handleStudentStatusChange(stud.id, !stud.has_voted)} className={`text-[10px] font-bold uppercase px-2 py-1 rounded border transition-colors ${stud.has_voted ? 'bg-green-50 text-green-600 border-green-200 hover:bg-red-50 hover:text-red-600 hover:border-red-200' : 'bg-slate-100 text-slate-400 border-slate-200 hover:bg-green-50 hover:text-green-600 hover:border-green-200'}`}>{stud.has_voted ? 'Voted' : 'Pending'}</button></td>
-                                            <td className="px-4 py-3 text-right"><button onClick={() => promptDeleteStudent(stud.id, stud.name)} className="text-red-400 hover:text-red-600 p-1 rounded hover:bg-red-50 transition-colors"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button></td>
+                                            <td className="px-4 py-3 font-mono text-xs font-bold text-cyan-600">{stud.passcode}</td>
+                                            <td className="px-4 py-3">
+                                              {canEdit ? (
+                                                <button onClick={() => handleStudentStatusChange(stud.id, !stud.has_voted)} className={`text-[10px] font-bold uppercase px-2 py-1 rounded border transition-colors ${stud.has_voted ? 'bg-green-50 text-green-600 border-green-200 hover:bg-red-50 hover:text-red-600 hover:border-red-200' : 'bg-slate-100 text-slate-400 border-slate-200 hover:bg-green-50 hover:text-green-600 hover:border-green-200'}`}>{stud.has_voted ? 'Voted' : 'Pending'}</button>
+                                              ) : (
+                                                <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded border ${stud.has_voted ? 'bg-green-50 text-green-600 border-green-200' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>{stud.has_voted ? 'Voted' : 'Pending'}</span>
+                                              )}
+                                            </td>
+                                            {canEdit && <td className="px-4 py-3 text-right"><button onClick={() => promptDeleteStudent(stud.id, stud.name)} className="text-red-400 hover:text-red-600 p-1 rounded hover:bg-red-50 transition-colors"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button></td>}
                                         </tr>
                                     ))
-                                ) : (<tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400 font-mono text-xs">No students found matching filters.</td></tr>)}
+                                ) : (<tr><td colSpan={canEdit ? 7 : 6} className="px-4 py-8 text-center text-slate-400 font-mono text-xs">No students found matching filters.</td></tr>)}
                             </tbody>
                          </table>
                      </div>
                   </div>
-                  <div className="glass-panel bg-white p-6 h-fit sticky top-4 rounded-xl border border-slate-200">
-                      <h3 className="text-lg font-tech text-slate-800 mb-4 uppercase tracking-wider">Authorize Student</h3>
-                      <form onSubmit={handleAddStudent} className="space-y-4">
-                        <div>
-                            <label className="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Student Name</label>
-                            <input required disabled={isAddingStudent} value={newStudName} onChange={e => setNewStudName(e.target.value)} className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-sm rounded-lg focus:border-cyan-500 outline-none" />
-                        </div>
-                        <div className="grid grid-cols-2 gap-2">
-                             <div>
-                                <label className="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Year</label>
-                                <select disabled={isAddingStudent} value={newStudYear} onChange={e => setNewStudYear(e.target.value as Year)} className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-xs rounded-lg appearance-none">{Object.values(Year).filter(y => y !== Year.Staff).map(y => <option key={y} value={y}>{y}</option>)}</select>
-                             </div>
-                             <div>
-                                <label className="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Major</label>
-                                <select disabled={isAddingStudent} value={newStudMajor} onChange={e => setNewStudMajor(e.target.value as Major)} className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-xs rounded-lg appearance-none">{STUDENT_MAJORS.map(m => <option key={m} value={m}>{m}</option>)}</select>
-                             </div>
-                        </div>
-                        <div>
-                            <label className="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Roll Number</label>
-                            <input required disabled={isAddingStudent} value={newStudRoll} onChange={e => setNewStudRoll(e.target.value)} className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-sm rounded-lg focus:border-cyan-500 outline-none" placeholder="e.g. 1" />
-                        </div>
-                        <div>
-                            <label className="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Passcode</label>
-                            <div className="relative">
-                                <input type={showStudentPasscode ? 'text' : 'password'} required disabled={isAddingStudent} value={newStudPasscode} onChange={e => setNewStudPasscode(e.target.value)} className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-sm rounded-lg focus:border-cyan-500 outline-none pr-8" />
-                                <button type="button" onClick={() => setShowStudentPasscode(!showStudentPasscode)} className="absolute inset-y-0 right-0 px-2 text-slate-400">{showStudentPasscode ? 'Hide' : 'Show'}</button>
-                            </div>
-                        </div>
-                        <button disabled={isAddingStudent} className="w-full bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-3 rounded-lg disabled:opacity-50 flex justify-center uppercase text-xs tracking-wider shadow-md shadow-cyan-200">{isAddingStudent ? <Spinner /> : 'Add Student'}</button>
-                      </form>
-                  </div>
+                  {canEdit && (
+                    <div className="glass-panel bg-white p-6 h-fit sticky top-4 rounded-xl border border-slate-200">
+                        <h3 className="text-lg font-tech text-slate-800 mb-4 uppercase tracking-wider">Authorize Student</h3>
+                        <form onSubmit={handleAddStudent} className="space-y-4">
+                          <div>
+                              <label className="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Student Name</label>
+                              <input required disabled={isAddingStudent} value={newStudName} onChange={e => setNewStudName(e.target.value)} className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-sm rounded-lg focus:border-cyan-500 outline-none" />
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                  <label className="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Year</label>
+                                  <select disabled={isAddingStudent} value={newStudYear} onChange={e => setNewStudYear(e.target.value as Year)} className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-xs rounded-lg appearance-none">{Object.values(Year).filter(y => y !== Year.Staff).map(y => <option key={y} value={y}>{y}</option>)}</select>
+                              </div>
+                              <div>
+                                  <label className="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Major</label>
+                                  <select disabled={isAddingStudent} value={newStudMajor} onChange={e => setNewStudMajor(e.target.value as Major)} className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-xs rounded-lg appearance-none">{STUDENT_MAJORS.map(m => <option key={m} value={m}>{m}</option>)}</select>
+                              </div>
+                          </div>
+                          <div>
+                              <label className="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Roll Number</label>
+                              <input required disabled={isAddingStudent} value={newStudRoll} onChange={e => setNewStudRoll(e.target.value)} className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-sm rounded-lg focus:border-cyan-500 outline-none" placeholder="e.g. 1" />
+                          </div>
+                          <div>
+                              <label className="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Passcode</label>
+                              <div className="relative">
+                                  <input type={showStudentPasscode ? 'text' : 'password'} required disabled={isAddingStudent} value={newStudPasscode} onChange={e => setNewStudPasscode(e.target.value)} className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-sm rounded-lg focus:border-cyan-500 outline-none pr-8" />
+                                  <button type="button" onClick={() => setShowStudentPasscode(!showStudentPasscode)} className="absolute inset-y-0 right-0 px-2 text-slate-400">{showStudentPasscode ? 'Hide' : 'Show'}</button>
+                              </div>
+                          </div>
+                          <button disabled={isAddingStudent} className="w-full bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-3 rounded-lg disabled:opacity-50 flex justify-center uppercase text-xs tracking-wider shadow-md shadow-cyan-200">{isAddingStudent ? <Spinner /> : 'Add Student'}</button>
+                        </form>
+                    </div>
+                  )}
                 </div>
             </div>
         )}
-        {!isLoading && activeTab === 'teachers' && adminRole === AdminRole.SuperAdmin && (
+        {!isLoading && activeTab === 'teachers' && canViewSensitiveData && (
              <div className="grid lg:grid-cols-3 gap-8 animate-fadeIn">
-               <div className="lg:col-span-2">
+               <div className={canEdit ? "lg:col-span-2" : "lg:col-span-3"}>
                   <div className="glass-panel bg-white p-4 mb-4 rounded-xl flex flex-col gap-4 border border-slate-200">
                      <div className="flex justify-between items-center border-b border-slate-100 pb-3">
                          <h4 className="font-bold text-slate-700 text-xs uppercase tracking-wider">Teacher List</h4>
@@ -1059,8 +1072,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                                 <tr>
                                     <th className="px-4 py-3">Name</th>
                                     <th className="px-4 py-3">Department</th>
+                                    <th className="px-4 py-3">Passcode</th>
                                     <th className="px-4 py-3">Status</th>
-                                    <th className="px-4 py-3 text-right">Action</th>
+                                    {canEdit && <th className="px-4 py-3 text-right">Action</th>}
                                 </tr>
                             </thead>
                             <tbody>
@@ -1069,46 +1083,49 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                                         <tr key={t.id} className="border-b border-slate-100 hover:bg-slate-50">
                                             <td className="px-4 py-3 font-bold text-slate-800">{t.name}</td>
                                             <td className="px-4 py-3 text-xs font-bold text-slate-500">{t.major}</td>
+                                            <td className="px-4 py-3 font-mono text-xs font-bold text-cyan-600">{t.passcode}</td>
                                             <td className="px-4 py-3"><span className={`text-[10px] font-bold uppercase px-2 py-1 rounded border ${t.has_voted ? 'bg-green-50 text-green-600 border-green-200' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>{t.has_voted ? 'Voted' : 'Pending'}</span></td>
-                                            <td className="px-4 py-3 text-right"><button onClick={() => promptDeleteTeacher(t.id, t.name)} className="text-red-400 hover:text-red-600 p-1 rounded hover:bg-red-50 transition-colors"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button></td>
+                                            {canEdit && <td className="px-4 py-3 text-right"><button onClick={() => promptDeleteTeacher(t.id, t.name)} className="text-red-400 hover:text-red-600 p-1 rounded hover:bg-red-50 transition-colors"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button></td>}
                                         </tr>
                                     ))
-                                ) : (<tr><td colSpan={4} className="px-4 py-8 text-center text-slate-400 font-mono text-xs">No teachers found.</td></tr>)}
+                                ) : (<tr><td colSpan={canEdit ? 5 : 4} className="px-4 py-8 text-center text-slate-400 font-mono text-xs">No teachers found.</td></tr>)}
                             </tbody>
                         </table>
                      </div>
                   </div>
                </div>
-               <div className="glass-panel bg-white p-6 h-fit sticky top-4 rounded-xl border border-slate-200">
-                  <h3 className="text-lg font-tech text-slate-800 mb-4 uppercase tracking-wider">Add Teacher</h3>
-                  <form onSubmit={handleAddTeacher} className="space-y-4">
-                      <div>
-                        <label className="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Name</label>
-                        <input required disabled={isAddingTeacher} value={newTeacherName} onChange={e => setNewTeacherName(e.target.value)} className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-sm rounded-lg focus:border-cyan-500 outline-none" />
-                      </div>
-                      <div>
-                        <label className="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Department</label>
-                        <div className="relative">
-                            <select disabled={isAddingTeacher} value={newTeacherMajor} onChange={e => setNewTeacherMajor(e.target.value as Major)} className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-xs rounded-lg outline-none appearance-none pr-8">
-                                {Object.values(Major).map(m => <option key={m} value={m}>{m}</option>)}
-                            </select>
-                            <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-slate-500"><svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg></div>
+               {canEdit && (
+                 <div className="glass-panel bg-white p-6 h-fit sticky top-4 rounded-xl border border-slate-200">
+                    <h3 className="text-lg font-tech text-slate-800 mb-4 uppercase tracking-wider">Add Teacher</h3>
+                    <form onSubmit={handleAddTeacher} className="space-y-4">
+                        <div>
+                          <label className="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Name</label>
+                          <input required disabled={isAddingTeacher} value={newTeacherName} onChange={e => setNewTeacherName(e.target.value)} className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-sm rounded-lg focus:border-cyan-500 outline-none" />
                         </div>
-                      </div>
-                      <div>
-                          <label className="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Passcode</label>
+                        <div>
+                          <label className="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Department</label>
                           <div className="relative">
-                              <input type={showTeacherPasscode ? 'text' : 'password'} required disabled={isAddingTeacher} value={newTeacherPasscode} onChange={e => setNewTeacherPasscode(e.target.value)} className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-sm rounded-lg focus:border-cyan-500 outline-none pr-8" />
-                              <button type="button" onClick={() => setShowTeacherPasscode(!showTeacherPasscode)} className="absolute inset-y-0 right-0 px-2 text-slate-400">{showTeacherPasscode ? 'Hide' : 'Show'}</button>
+                              <select disabled={isAddingTeacher} value={newTeacherMajor} onChange={e => setNewTeacherMajor(e.target.value as Major)} className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-xs rounded-lg outline-none appearance-none pr-8">
+                                  {Object.values(Major).map(m => <option key={m} value={m}>{m}</option>)}
+                              </select>
+                              <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-slate-500"><svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg></div>
                           </div>
-                      </div>
-                      <button disabled={isAddingTeacher} className="w-full bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-3 rounded-lg disabled:opacity-50 flex justify-center uppercase text-xs tracking-wider shadow-md shadow-cyan-200">{isAddingTeacher ? <Spinner /> : 'Add Teacher'}</button>
-                  </form>
-               </div>
+                        </div>
+                        <div>
+                            <label className="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Passcode</label>
+                            <div className="relative">
+                                <input type={showTeacherPasscode ? 'text' : 'password'} required disabled={isAddingTeacher} value={newTeacherPasscode} onChange={e => setNewTeacherPasscode(e.target.value)} className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-sm rounded-lg focus:border-cyan-500 outline-none pr-8" />
+                                <button type="button" onClick={() => setShowTeacherPasscode(!showTeacherPasscode)} className="absolute inset-y-0 right-0 px-2 text-slate-400">{showTeacherPasscode ? 'Hide' : 'Show'}</button>
+                            </div>
+                        </div>
+                        <button disabled={isAddingTeacher} className="w-full bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-3 rounded-lg disabled:opacity-50 flex justify-center uppercase text-xs tracking-wider shadow-md shadow-cyan-200">{isAddingTeacher ? <Spinner /> : 'Add Teacher'}</button>
+                    </form>
+                 </div>
+               )}
              </div>
         )}
 
-        {!isLoading && activeTab === 'passcodes' && adminRole === AdminRole.SuperAdmin && (
+        {!isLoading && activeTab === 'passcodes' && canViewSensitiveData && (
             <div className="animate-fadeIn space-y-6">
                 <div className="glass-panel bg-white p-4 rounded-xl flex flex-col md:flex-row gap-4 border border-slate-200">
                     <input type="text" placeholder="Search..." value={passcodeSearch} onChange={(e) => setPasscodeSearch(e.target.value)} className="flex-1 bg-slate-50 border border-slate-300 p-2 text-slate-900 text-xs rounded-lg outline-none focus:border-cyan-500" />
@@ -1129,7 +1146,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                              </div>
                              <div className="flex justify-between items-end">
                                 <span className="font-mono font-bold text-cyan-600 text-sm tracking-wider bg-cyan-50 px-2 py-1 rounded border border-cyan-100">{p.currentCode}</span>
-                                <button onClick={() => setEditingPasscode({year: p.year, major: p.major, code: p.currentCode})} className="text-slate-400 hover:text-cyan-600 p-1"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></button>
+                                {canEdit && <button onClick={() => setEditingPasscode({year: p.year, major: p.major, code: p.currentCode})} className="text-slate-400 hover:text-cyan-600 p-1"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></button>}
                              </div>
                         </div>
                     ))}
@@ -1137,7 +1154,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
             </div>
         )}
 
-        {!isLoading && activeTab === 'settings' && adminRole === AdminRole.SuperAdmin && (
+        {!isLoading && activeTab === 'settings' && canEdit && (
              <div className="animate-fadeIn max-w-2xl mx-auto space-y-8">
                  <div className="glass-panel bg-white p-6 rounded-xl border border-slate-200">
                      <h3 className="text-lg font-tech text-slate-800 mb-4 uppercase tracking-wider">Event Timing</h3>

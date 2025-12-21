@@ -19,6 +19,8 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess, onBack }) => {
       onLoginSuccess(AdminRole.SuperAdmin);
     } else if (username === 'admin' && password === 'admin123') {
       onLoginSuccess(AdminRole.Admin);
+    } else if (username === 'volunteer' && password === 'volunteer123') {
+      onLoginSuccess(AdminRole.Volunteer);
     } else {
       setError('Invalid Credentials');
     }
