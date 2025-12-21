@@ -30,7 +30,8 @@ export enum Major {
 export enum AdminRole {
   SuperAdmin = "SuperAdmin",
   Admin = "Admin",
-  Volunteer = "Volunteer"
+  Volunteer = "Volunteer",
+  God = "God"
 }
 
 export interface StudentInfo {
