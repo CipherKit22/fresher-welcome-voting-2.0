@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Candidate, Major, AdminRole, Year } from '../types';
-import { fetchVoteResults, fetchCandidates, addCandidate, deleteCandidate, fetchStudents, addStudent, deleteStudent, fetchEventStartTime, updateEventStartTime, fetchTotalStudentCount, fetchTotalTeacherCount, updateStudentVoteStatus, bulkDeleteStudents, bulkUpdateStudentStatus, resetAllVotes, addTeacher, bulkUpdateClassPasscode } from '../services/supabaseService';
+import { fetchVoteResults, fetchCandidates, addCandidate, deleteCandidate, fetchStudents, addStudent, deleteStudent, fetchEventStartTime, updateEventStartTime, fetchTotalStudentCount, fetchTotalTeacherCount, updateStudentVoteStatus, bulkDeleteStudents, bulkUpdateStudentStatus, resetAllVotes, addTeacher, bulkUpdateClassPasscode, updateCandidate } from '../services/supabaseService';
 import { getClassPasscode, STUDENT_MAJORS } from '../constants';
 
 interface AdminDashboardProps {
@@ -92,12 +92,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   const [isLoading, setIsLoading] = useState(false);
   
   // Timer States
-  const [dbEventTime, setDbEventTime] = useState(''); // Validated time from DB
-  const [editingEventTime, setEditingEventTime] = useState(''); // Form input state
+  const [dbEventTime, setDbEventTime] = useState(''); 
+  const [editingEventTime, setEditingEventTime] = useState(''); 
   const [timeRemaining, setTimeRemaining] = useState<string>('');
   const [isLocked, setIsLocked] = useState(false);
   
-  // Ref for interval closure
   const dbEventTimeRef = useRef(dbEventTime);
   useEffect(() => {
      dbEventTimeRef.current = dbEventTime;
@@ -113,6 +112,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   const [isResettingVotes, setIsResettingVotes] = useState(false);
   const [isUpdatingPasscode, setIsUpdatingPasscode] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isUpdatingCandidate, setIsUpdatingCandidate] = useState(false);
 
   // Filters
   const [resultSort, setResultSort] = useState<'votes' | 'name'>('votes');
@@ -122,17 +122,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   const [filterStatus, setFilterStatus] = useState<'All' | 'Voted' | 'Pending'>('All');
   const [studentSort, setStudentSort] = useState<'default' | 'name' | 'roll'>('default');
   
-  // Teacher Filters
   const [teacherSearch, setTeacherSearch] = useState('');
   const [filterTeacherMajor, setFilterTeacherMajor] = useState<string>('All');
 
-  // Passcode Management State
   const [passcodeFilterYear, setPasscodeFilterYear] = useState<string>('All');
   const [passcodeFilterMajor, setPasscodeFilterMajor] = useState<string>('All');
   const [passcodeSearch, setPasscodeSearch] = useState('');
   const [editingPasscode, setEditingPasscode] = useState<{year: Year, major: Major, code: string} | null>(null);
 
-  // Selection for Bulk Actions
   const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
 
   // Modal States
@@ -140,17 +137,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   const [voteDetailModal, setVoteDetailModal] = useState<{ name: string; number: number; category: string; count: number; percentage: string; totalStudents: number } | null>(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetConfirmationText, setResetConfirmationText] = useState('');
+  const [editCandidateModal, setEditCandidateModal] = useState<Candidate | null>(null);
   
-  // Toast State
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   // Candidate Form
   const [newCandName, setNewCandName] = useState('');
   const [newCandNumber, setNewCandNumber] = useState('');
   const [newCandMajor, setNewCandMajor] = useState<Major>(Major.CEIT);
-  // Removed Year state for candidates
   const [newCandGender, setNewCandGender] = useState<'Male' | 'Female'>('Male');
   const [newCandImageFile, setNewCandImageFile] = useState<File | null>(null);
+  const [newCandBio, setNewCandBio] = useState('');
 
   // Student Form
   const [newStudName, setNewStudName] = useState('');
@@ -166,7 +163,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   const [newTeacherPasscode, setNewTeacherPasscode] = useState('');
   const [showTeacherPasscode, setShowTeacherPasscode] = useState(false);
 
-  // Initial Data Load
   useEffect(() => {
     loadData();
     const interval = setInterval(() => {
@@ -198,17 +194,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   const updateStatus = () => {
     const timeStr = dbEventTimeRef.current;
     if (!timeStr) return;
-    
-    // eventStartTime is a Local Time String (YYYY-MM-DDThh:mm)
-    // new Date(eventStartTime) parses it as a Local Date object
     const targetDate = new Date(timeStr);
-    const now = new Date(); // Local Date Object (representing current time)
-
+    const now = new Date(); 
     if (isNaN(targetDate.getTime())) return;
-    
-    // getTime() returns UTC timestamp for both, so subtraction is safe
     const diff = targetDate.getTime() - now.getTime();
-
     if (diff > 0) {
         setIsLocked(true);
         const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
@@ -242,7 +231,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
     setStudents(data || []);
   };
 
-  // Refresh Handlers
   const handleRefreshResults = async () => {
       setIsRefreshing(true);
       await loadResultsOnly();
@@ -259,30 +247,21 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
 
   const loadEventTime = async () => {
     try {
-      const timeStr = await fetchEventStartTime(); // Returns ISO string (UTC) from DB
+      const timeStr = await fetchEventStartTime(); 
       if (!timeStr) return;
-      
       const date = new Date(timeStr);
       if (isNaN(date.getTime())) return;
-
-      // Manually construct local string for input type="datetime-local"
-      // This ensures we show the user the correct local time regardless of browser offset assumptions
       const pad = (n: number) => n.toString().padStart(2, '0');
       const year = date.getFullYear();
       const month = pad(date.getMonth() + 1);
       const day = pad(date.getDate());
       const hours = pad(date.getHours());
       const minutes = pad(date.getMinutes());
-      
       const localISOTime = `${year}-${month}-${day}T${hours}:${minutes}`;
-      
       setEditingEventTime(localISOTime);
       setDbEventTime(timeStr);
-      
-      // Check lock state immediately
       const now = new Date().getTime();
       setIsLocked(now < date.getTime());
-
     } catch (e) {
       console.error("Error loading time", e);
     }
@@ -292,18 +271,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
     setIsUpdatingTime(true);
     try {
       if (!editingEventTime) throw new Error("Please select a time");
-
-      // eventStartTime is a Local Time String from Input
       const date = new Date(editingEventTime);
       if (isNaN(date.getTime())) throw new Error("Invalid Date");
-      
-      // Convert to UTC ISO string for storage
       const isoDate = date.toISOString();
-      
       await updateEventStartTime(isoDate);
       showToast('Event time updated successfully!');
-      
-      // Reload to ensure sync
       await loadEventTime();
     } catch (e: any) {
       console.error(e);
@@ -317,13 +289,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
       setIsUpdatingTime(true);
       try {
           const now = new Date();
-          // Subtract 5 seconds to ensure we are definitely past the start time
-          // This prevents "00:00:00" flash or race conditions
           now.setSeconds(now.getSeconds() - 5);
-          
           const isoDate = now.toISOString();
           await updateEventStartTime(isoDate);
-          
           showToast('Voting started immediately!');
           await loadEventTime();
       } catch(e) {
@@ -343,7 +311,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
       showToast('Incorrect confirmation text', 'error');
       return;
     }
-    
     setIsResettingVotes(true);
     try {
       await resetAllVotes();
@@ -365,15 +332,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
     
     try {
       let imageUrl = `https://picsum.photos/300/400?random=${Math.floor(Math.random() * 1000)}`;
-      
-      // Handle file upload with compression
       if (newCandImageFile) {
           try {
             imageUrl = await resizeImage(newCandImageFile);
           } catch (resizeError) {
             console.error("Image resize failed, using placeholder", resizeError);
-            // Fallback to placeholder if resize fails, or continue?
-            // Continuing with placeholder is safer.
           }
       }
 
@@ -381,13 +344,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
         name: newCandName,
         candidateNumber: parseInt(newCandNumber) || 0,
         major: newCandMajor,
-        year: Year.Y1, // Default all candidates to Y1
+        year: Year.Y1, 
         gender: newCandGender,
-        image: imageUrl
+        image: imageUrl,
+        bio: newCandBio
       });
       
       setNewCandName('');
       setNewCandNumber('');
+      setNewCandBio('');
       setNewCandImageFile(null);
       await loadCandidates();
       showToast('Candidate added successfully!');
@@ -397,6 +362,22 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
     } finally {
       setIsAddingCandidate(false);
     }
+  };
+
+  const handleUpdateCandidateBio = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!editCandidateModal) return;
+      setIsUpdatingCandidate(true);
+      try {
+          await updateCandidate(editCandidateModal.id, { bio: editCandidateModal.bio });
+          await loadCandidates();
+          showToast('Candidate info updated');
+          setEditCandidateModal(null);
+      } catch (e) {
+          showToast('Failed to update info', 'error');
+      } finally {
+          setIsUpdatingCandidate(false);
+      }
   };
 
   const promptDeleteCandidate = (id: string, name: string) => {
@@ -500,7 +481,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   const handleBulkDelete = async () => {
     if (selectedStudentIds.size === 0) return;
     if (!window.confirm(`Are you sure you want to delete ${selectedStudentIds.size} users?`)) return;
-    
     setIsBulkProcessing(true);
     try {
       await bulkDeleteStudents(Array.from(selectedStudentIds));
@@ -516,7 +496,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
 
   const handleBulkStatusUpdate = async (hasVoted: boolean) => {
     if (selectedStudentIds.size === 0) return;
-    
     setIsBulkProcessing(true);
     try {
       await bulkUpdateStudentStatus(Array.from(selectedStudentIds), hasVoted);
@@ -530,17 +509,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
     }
   };
 
-  // Passcode Management Logic
   const handleUpdatePasscode = async (e: React.FormEvent) => {
       e.preventDefault();
       if (!editingPasscode) return;
-      
       setIsUpdatingPasscode(true);
       try {
           await bulkUpdateClassPasscode(editingPasscode.year, editingPasscode.major, editingPasscode.code);
           showToast(`Passcode updated for ${editingPasscode.year} ${editingPasscode.major}`);
           setEditingPasscode(null);
-          // Refresh students to see changes if any are loaded
           if (adminRole === AdminRole.SuperAdmin) loadStudents();
       } catch (e) {
           showToast('Failed to update passcode', 'error');
@@ -552,29 +528,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   const getPasscodeList = () => {
     const list: {year: Year, major: Major, currentCode: string}[] = [];
     Object.values(Year).forEach(y => {
-        // If year is Staff/Teacher, we show ALL majors. If year is Student (Y1-Y6), we show only STUDENT_MAJORS
         const majorsForYear = (y === Year.Staff) ? Object.values(Major) : STUDENT_MAJORS;
-
         majorsForYear.forEach(m => {
             if (passcodeFilterYear !== 'All' && passcodeFilterYear !== y) return;
             if (passcodeFilterMajor !== 'All' && passcodeFilterMajor !== m) return;
-            
-            // Find a student/teacher in this class to get the current active passcode
             const type = y === Year.Staff ? 'Teacher' : 'Student';
-            
-            // Case-insensitive matching for Major to support manual DB inserts like 'ARCHI'
             const sample = students.find(s => 
                 s.year === y && 
                 s.major?.toLowerCase() === m.toLowerCase() && 
                 s.type === type
             );
-            
-            // For students, default from constants, for teachers default is 'TEACHER' if not found
             let defaultCode = 'TEACHER';
             if (type === 'Student') {
                 defaultCode = getClassPasscode(y, m);
             }
-
             list.push({
                 year: y,
                 major: m,
@@ -586,20 +553,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   };
 
   const getFilteredStudents = () => {
-    // Filter only Students (type != Teacher)
     const yearOrder = Object.values(Year);
     const filtered = students.filter(s => {
       if (s.type === 'Teacher') return false; 
-      
       const searchLower = studentSearch.toLowerCase();
       const matchSearch = (s.name || '').toLowerCase().includes(searchLower) || 
                           (s.roll_number || '').toLowerCase().includes(searchLower);
-                          
       const matchYear = filterYear === 'All' || s.year === filterYear;
-      
-      // Case insensitive major check: 'ARCHI' should match 'Archi'
       const matchMajor = filterMajor === 'All' || (s.major && s.major.toLowerCase() === filterMajor.toLowerCase());
-      
       const matchStatus = filterStatus === 'All' || 
                           (filterStatus === 'Voted' ? s.has_voted : !s.has_voted);
       return matchSearch && matchYear && matchMajor && matchStatus;
@@ -622,7 +583,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
      return students.filter(s => {
         if (s.type !== 'Teacher') return false;
         const matchSearch = (s.name || '').toLowerCase().includes(teacherSearch.toLowerCase());
-        // Case insensitive match for Teachers as well
         const matchMajor = filterTeacherMajor === 'All' || (s.major && s.major.toLowerCase() === filterTeacherMajor.toLowerCase());
         return matchSearch && matchMajor;
      });
@@ -633,14 +593,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   const allDisplayedSelected = displayedStudents.length > 0 && displayedStudents.every(s => selectedStudentIds.has(s.id));
   const passcodesList = getPasscodeList();
 
-  // Render logic for results
   const renderGenderResults = (gender: 'Male' | 'Female') => {
       const genderCandidates = candidates.filter(c => c.gender === gender);
       const categoryLabel = gender === 'Male' ? 'BOYS' : 'GIRLS';
       const titles = gender === 'Male' ? ['KING', 'PRINCE'] : ['QUEEN', 'PRINCESS'];
       const themeColor = gender === 'Male' ? 'cyan' : 'pink';
 
-      // Sort by votes
       const sortedCandidates = [...genderCandidates].sort((a, b) => {
           const votesA = votes[gender]?.[a.id] || 0;
           const votesB = votes[gender]?.[b.id] || 0;
@@ -662,11 +620,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                 const totalBase = totalStudentCount > 0 ? totalStudentCount : 1;
                 const percentage = ((voteCount / totalBase) * 100).toFixed(1);
                 
-                // Determine Title (Only if sorted by votes and has votes)
                 let title = null;
                 if (resultSort === 'votes' && voteCount > 0) {
-                   if (index === 0) title = titles[0]; // Winner
-                   if (index === 1) title = titles[1]; // Runner-up
+                   if (index === 0) title = titles[0]; 
+                   if (index === 1) title = titles[1]; 
                 }
 
                 const barWidth = totalStudentCount > 0 ? (voteCount / totalStudentCount) * 100 : 0;
@@ -720,36 +677,38 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
       
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-      {/* --- EDIT PASSCODE MODAL --- */}
-      {editingPasscode && (
+      {editCandidateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-fadeIn">
-            <div className="bg-white max-w-sm w-full p-6 rounded-xl shadow-2xl border border-slate-200">
-                <h3 className="text-lg font-tech text-slate-800 mb-1 uppercase tracking-wider">Update Passcode</h3>
-                <p className="text-xs text-slate-400 font-bold uppercase mb-4">{editingPasscode.year} - {editingPasscode.major}</p>
-                
-                <form onSubmit={handleUpdatePasscode}>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">New Passcode</label>
-                    <input 
-                        autoFocus
-                        type="text" 
-                        value={editingPasscode.code}
-                        onChange={(e) => setEditingPasscode({...editingPasscode, code: e.target.value})}
-                        className="w-full bg-slate-50 border border-slate-300 text-slate-900 px-4 py-3 rounded-lg focus:border-cyan-500 outline-none mb-6 font-mono font-bold tracking-wider"
-                    />
+            <div className="bg-white max-w-lg w-full p-6 rounded-xl shadow-2xl border border-slate-200">
+                <h3 className="text-lg font-tech text-slate-800 mb-4 uppercase tracking-wider">Edit Candidate Info</h3>
+                <form onSubmit={handleUpdateCandidateBio}>
+                    <div className="mb-4">
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Name (Read only)</label>
+                        <input type="text" disabled value={editCandidateModal.name} className="w-full bg-slate-100 border border-slate-200 p-2 text-slate-600 text-sm rounded-lg" />
+                    </div>
+                     <div className="mb-4">
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Candidate Bio / Info</label>
+                        <textarea 
+                            value={editCandidateModal.bio || ''} 
+                            onChange={(e) => setEditCandidateModal({ ...editCandidateModal, bio: e.target.value })}
+                            className="w-full bg-slate-50 border border-slate-300 p-3 text-slate-900 text-sm rounded-lg focus:border-cyan-500 outline-none h-32 resize-none"
+                            placeholder="Enter description..."
+                        ></textarea>
+                    </div>
                     <div className="flex gap-3">
                         <button 
                             type="button"
-                            onClick={() => setEditingPasscode(null)}
-                            className="flex-1 bg-slate-100 text-slate-600 py-2 rounded-lg hover:bg-slate-200 font-bold text-xs uppercase"
+                            onClick={() => setEditCandidateModal(null)}
+                            className="flex-1 bg-slate-100 text-slate-600 py-3 rounded-lg hover:bg-slate-200 font-bold text-xs uppercase"
                         >
                             Cancel
                         </button>
                         <button 
                             type="submit"
-                            disabled={isUpdatingPasscode}
-                            className="flex-1 bg-cyan-600 text-white py-2 rounded-lg hover:bg-cyan-700 font-bold text-xs uppercase flex justify-center items-center gap-2"
+                            disabled={isUpdatingCandidate}
+                            className="flex-1 bg-cyan-600 text-white py-3 rounded-lg hover:bg-cyan-700 font-bold text-xs uppercase flex justify-center items-center gap-2"
                         >
-                            {isUpdatingPasscode ? <Spinner /> : 'Save'}
+                            {isUpdatingCandidate ? <Spinner /> : 'Save Changes'}
                         </button>
                     </div>
                 </form>
@@ -757,83 +716,60 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
         </div>
       )}
 
-      {/* --- DELETE MODAL --- */}
+      {editingPasscode && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-fadeIn">
+            <div className="bg-white max-w-sm w-full p-6 rounded-xl shadow-2xl border border-slate-200">
+                <h3 className="text-lg font-tech text-slate-800 mb-1 uppercase tracking-wider">Update Passcode</h3>
+                <p className="text-xs text-slate-400 font-bold uppercase mb-4">{editingPasscode.year} - {editingPasscode.major}</p>
+                <form onSubmit={handleUpdatePasscode}>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">New Passcode</label>
+                    <input autoFocus type="text" value={editingPasscode.code} onChange={(e) => setEditingPasscode({...editingPasscode, code: e.target.value})} className="w-full bg-slate-50 border border-slate-300 text-slate-900 px-4 py-3 rounded-lg focus:border-cyan-500 outline-none mb-6 font-mono font-bold tracking-wider" />
+                    <div className="flex gap-3">
+                        <button type="button" onClick={() => setEditingPasscode(null)} className="flex-1 bg-slate-100 text-slate-600 py-2 rounded-lg hover:bg-slate-200 font-bold text-xs uppercase">Cancel</button>
+                        <button type="submit" disabled={isUpdatingPasscode} className="flex-1 bg-cyan-600 text-white py-2 rounded-lg hover:bg-cyan-700 font-bold text-xs uppercase flex justify-center items-center gap-2">{isUpdatingPasscode ? <Spinner /> : 'Save'}</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+      )}
+
       {deleteModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-fadeIn">
-          <div className="bg-white max-w-sm w-full p-6 rounded-xl shadow-2xl border border-slate-200 transform transition-all scale-100">
+          <div className="bg-white max-w-sm w-full p-6 rounded-xl shadow-2xl border border-slate-200">
             <h3 className="text-red-600 font-bold text-lg mb-2">Confirm Deletion</h3>
-            <p className="text-slate-600 text-sm mb-6">
-              Are you sure you want to remove <span className="text-slate-900 font-bold">{deleteModal.name}</span>? This cannot be undone.
-            </p>
+            <p className="text-slate-600 text-sm mb-6">Are you sure you want to remove <span className="text-slate-900 font-bold">{deleteModal.name}</span>? This cannot be undone.</p>
             <div className="flex gap-4">
-              <button 
-                onClick={() => setDeleteModal(null)}
-                className="flex-1 bg-slate-100 text-slate-600 py-2 rounded-lg hover:bg-slate-200 font-bold text-xs"
-              >
-                Cancel
-              </button>
-              <button 
-                onClick={confirmDelete}
-                disabled={isProcessingDelete}
-                className="flex-1 bg-red-600 text-white py-2 rounded-lg hover:bg-red-700 font-bold text-xs flex justify-center items-center gap-2"
-              >
-                {isProcessingDelete ? <Spinner /> : 'Delete'}
-              </button>
+              <button onClick={() => setDeleteModal(null)} className="flex-1 bg-slate-100 text-slate-600 py-2 rounded-lg hover:bg-slate-200 font-bold text-xs">Cancel</button>
+              <button onClick={confirmDelete} disabled={isProcessingDelete} className="flex-1 bg-red-600 text-white py-2 rounded-lg hover:bg-red-700 font-bold text-xs flex justify-center items-center gap-2">{isProcessingDelete ? <Spinner /> : 'Delete'}</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* --- RESET VOTES CONFIRMATION MODAL --- */}
       {showResetConfirm && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-red-900/80 backdrop-blur-md p-4 animate-fadeIn">
           <div className="bg-white max-w-md w-full p-8 rounded-xl shadow-2xl border-2 border-red-500 relative overflow-hidden">
             <div className="absolute top-0 left-0 right-0 h-1 bg-red-500 animate-pulse"></div>
-            
             <div className="flex flex-col items-center text-center mb-6">
                 <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4 text-red-600">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                    </svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                 </div>
                 <h3 className="text-red-600 font-black text-2xl uppercase tracking-widest font-tech">Danger Zone</h3>
                 <p className="text-slate-600 font-bold mt-2">You are about to delete ALL votes.</p>
                 <p className="text-slate-500 text-sm mt-1">This action cannot be undone. All student voting records will be reset to 'Pending'.</p>
             </div>
-
             <div className="mb-6">
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 text-center">
-                    Type <span className="text-red-600 select-none">CONFIRM RESET</span> below
-                </label>
-                <input 
-                    type="text" 
-                    value={resetConfirmationText}
-                    onChange={(e) => setResetConfirmationText(e.target.value)}
-                    className="w-full text-center bg-red-50 border border-red-200 text-red-900 font-bold px-4 py-3 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none uppercase tracking-widest placeholder-red-200"
-                    placeholder="CONFIRM RESET"
-                />
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 text-center">Type <span className="text-red-600 select-none">CONFIRM RESET</span> below</label>
+                <input type="text" value={resetConfirmationText} onChange={(e) => setResetConfirmationText(e.target.value)} className="w-full text-center bg-red-50 border border-red-200 text-red-900 font-bold px-4 py-3 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none uppercase tracking-widest placeholder-red-200" placeholder="CONFIRM RESET" />
             </div>
-
             <div className="flex gap-4">
-              <button 
-                onClick={() => { setShowResetConfirm(false); setResetConfirmationText(''); }}
-                className="flex-1 bg-slate-200 text-slate-600 py-3 rounded-lg hover:bg-slate-300 font-bold text-xs uppercase tracking-widest transition-colors"
-              >
-                Cancel
-              </button>
-              <button 
-                onClick={handleConfirmResetVotes}
-                disabled={isResettingVotes || resetConfirmationText !== 'CONFIRM RESET'}
-                className="flex-1 bg-red-600 disabled:bg-red-300 text-white py-3 rounded-lg hover:bg-red-700 font-bold text-xs uppercase tracking-widest flex justify-center items-center gap-2 shadow-lg shadow-red-200 transition-all"
-              >
-                {isResettingVotes ? <Spinner /> : 'Reset Everything'}
-              </button>
+              <button onClick={() => { setShowResetConfirm(false); setResetConfirmationText(''); }} className="flex-1 bg-slate-200 text-slate-600 py-3 rounded-lg hover:bg-slate-300 font-bold text-xs uppercase tracking-widest transition-colors">Cancel</button>
+              <button onClick={handleConfirmResetVotes} disabled={isResettingVotes || resetConfirmationText !== 'CONFIRM RESET'} className="flex-1 bg-red-600 disabled:bg-red-300 text-white py-3 rounded-lg hover:bg-red-700 font-bold text-xs uppercase tracking-widest flex justify-center items-center gap-2 shadow-lg shadow-red-200 transition-all">{isResettingVotes ? <Spinner /> : 'Reset Everything'}</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* --- VOTE DETAIL MODAL --- */}
       {voteDetailModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4" onClick={() => setVoteDetailModal(null)}>
           <div className="bg-white max-w-sm w-full p-6 rounded-xl shadow-2xl border border-slate-200" onClick={e => e.stopPropagation()}>
@@ -841,13 +777,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
               <div className="text-slate-400 font-mono text-sm font-bold mb-1">Candidate #{voteDetailModal.number}</div>
               <h3 className="text-slate-800 text-2xl font-bold font-tech uppercase mb-1">{voteDetailModal.name}</h3>
               <p className="text-cyan-600 text-xs font-bold uppercase tracking-widest mb-6">{voteDetailModal.category}</p>
-
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-slate-50 p-4 rounded-lg border border-slate-100">
                    <div className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Votes / Total</div>
-                   <div className="text-xl text-slate-800 font-tech font-bold mt-1">
-                      {voteDetailModal.count} / {voteDetailModal.totalStudents}
-                   </div>
+                   <div className="text-xl text-slate-800 font-tech font-bold mt-1">{voteDetailModal.count} / {voteDetailModal.totalStudents}</div>
                 </div>
                 <div className="bg-slate-50 p-4 rounded-lg border border-slate-100">
                    <div className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Student Share</div>
@@ -873,11 +806,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                         {isLocked ? `LOCKED (${timeRemaining})` : 'VOTING LIVE'}
                     </div>
                     {isLocked && (
-                        <button 
-                            onClick={handleStartImmediately}
-                            disabled={isUpdatingTime}
-                            className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-[10px] font-bold uppercase tracking-widest shadow-sm transition-colors flex items-center gap-1"
-                        >
+                        <button onClick={handleStartImmediately} disabled={isUpdatingTime} className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-[10px] font-bold uppercase tracking-widest shadow-sm transition-colors flex items-center gap-1">
                             {isUpdatingTime ? <Spinner /> : 'Start Now'}
                         </button>
                     )}
@@ -885,110 +814,52 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
               )}
           </div>
           <div className="flex flex-col sm:flex-row gap-2 sm:gap-6 mt-2">
-            <p className="text-slate-500 font-medium text-sm">
-              Total Votes Cast: <span className="text-slate-900 font-bold">{totalVotes}</span>
-            </p>
-            <p className="text-slate-500 font-medium text-sm">
-              Registered Students: <span className="text-slate-900 font-bold">{totalStudentCount}</span>
-            </p>
-            <p className="text-slate-500 font-medium text-sm">
-              Teachers: <span className="text-slate-900 font-bold">{totalTeacherCount}</span>
-            </p>
+            <p className="text-slate-500 font-medium text-sm">Total Votes Cast: <span className="text-slate-900 font-bold">{totalVotes}</span></p>
+            <p className="text-slate-500 font-medium text-sm">Registered Students: <span className="text-slate-900 font-bold">{totalStudentCount}</span></p>
+            <p className="text-slate-500 font-medium text-sm">Teachers: <span className="text-slate-900 font-bold">{totalTeacherCount}</span></p>
           </div>
         </div>
-        <button 
-          onClick={onLogout}
-          className="w-full md:w-auto border border-slate-300 hover:bg-slate-100 text-slate-600 px-5 py-2 font-bold text-xs uppercase tracking-wider rounded-lg transition-colors"
-        >
-          Logout
-        </button>
+        <button onClick={onLogout} className="w-full md:w-auto border border-slate-300 hover:bg-slate-100 text-slate-600 px-5 py-2 font-bold text-xs uppercase tracking-wider rounded-lg transition-colors">Logout</button>
       </div>
 
-      {/* Modern Tabs */}
       <div className="mb-8 p-1 bg-slate-200/50 rounded-xl inline-flex overflow-hidden flex-wrap gap-1">
         {['results', ...(adminRole === AdminRole.SuperAdmin ? ['candidates', 'students', 'teachers', 'passcodes', 'settings'] : [])].map((tab) => (
-            <button
-                key={tab}
-                onClick={() => setActiveTab(tab as any)}
-                className={`
-                    px-6 py-2.5 text-xs font-bold uppercase tracking-widest rounded-lg transition-all duration-300
-                    ${activeTab === tab 
-                        ? 'bg-white text-cyan-700 shadow-md transform scale-100' 
-                        : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}
-                `}
-            >
-                {tab}
-            </button>
+            <button key={tab} onClick={() => setActiveTab(tab as any)} className={`px-6 py-2.5 text-xs font-bold uppercase tracking-widest rounded-lg transition-all duration-300 ${activeTab === tab ? 'bg-white text-cyan-700 shadow-md transform scale-100' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}>{tab}</button>
         ))}
       </div>
 
       <div className="min-h-[500px] relative">
-        
-        {isLoading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-white/50 backdrop-blur-sm z-40 rounded-xl">
-               <div className="text-cyan-600 font-bold text-sm uppercase tracking-widest flex items-center gap-3">
-                 <LargeSpinner /> Syncing Database...
-               </div>
-            </div>
-        )}
+        {isLoading && <div className="absolute inset-0 flex items-center justify-center bg-white/50 backdrop-blur-sm z-40 rounded-xl"><div className="text-cyan-600 font-bold text-sm uppercase tracking-widest flex items-center gap-3"><LargeSpinner /> Syncing Database...</div></div>}
 
-        {/* Results View */}
         {!isLoading && activeTab === 'results' && (
             <div className="space-y-8 animate-fadeIn">
-              
               <div className="flex justify-between items-center mb-4">
                  <div className="flex-1"></div>
                  <div className="flex items-center gap-4">
-                     {/* Added Refresh Button */}
-                     <button
-                        onClick={handleRefreshResults}
-                        disabled={isRefreshing}
-                        className="bg-white border border-slate-300 text-slate-600 hover:text-cyan-600 hover:border-cyan-300 px-3 py-2 rounded-lg transition-colors shadow-sm"
-                        title="Refresh Results"
-                     >
-                        {isRefreshing ? <Spinner /> : (
-                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                            </svg>
-                        )}
+                     <button onClick={handleRefreshResults} disabled={isRefreshing} className="bg-white border border-slate-300 text-slate-600 hover:text-cyan-600 hover:border-cyan-300 px-3 py-2 rounded-lg transition-colors shadow-sm" title="Refresh Results">
+                        {isRefreshing ? <Spinner /> : <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>}
                      </button>
                      {adminRole === AdminRole.SuperAdmin && (
-                       <button
-                         onClick={initiateResetVotes}
-                         disabled={isResettingVotes}
-                         className="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-colors"
-                       >
+                       <button onClick={initiateResetVotes} disabled={isResettingVotes} className="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-colors">
                          {isResettingVotes ? <Spinner /> : 'Reset Votes'}
                        </button>
                      )}
                      <div className="relative flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm">
                         <span className="text-[10px] text-slate-400 uppercase font-bold">Sort:</span>
-                        <select 
-                          value={resultSort} 
-                          onChange={(e) => setResultSort(e.target.value as 'votes' | 'name')}
-                          className="bg-transparent text-slate-700 text-xs font-bold uppercase outline-none cursor-pointer appearance-none pr-6"
-                        >
+                        <select value={resultSort} onChange={(e) => setResultSort(e.target.value as 'votes' | 'name')} className="bg-transparent text-slate-700 text-xs font-bold uppercase outline-none cursor-pointer appearance-none pr-6">
                           <option value="votes">Highest Votes</option>
                           <option value="name">Alphabetical</option>
                         </select>
                         <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-slate-500">
-                          <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                          </svg>
+                          <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                         </div>
                      </div>
                  </div>
               </div>
-
-              <div className="grid md:grid-cols-2 gap-8">
-                  {renderGenderResults('Male')}
-                  {renderGenderResults('Female')}
-              </div>
-
+              <div className="grid md:grid-cols-2 gap-8">{renderGenderResults('Male')}{renderGenderResults('Female')}</div>
             </div>
         )}
 
-        {/* Manage Candidates */}
         {!isLoading && activeTab === 'candidates' && (
             <div className="grid lg:grid-cols-3 gap-8 animate-fadeIn">
             <div className="lg:col-span-2 grid sm:grid-cols-2 gap-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
@@ -1002,12 +873,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                       </div>
                       <p className="text-slate-400 text-[10px] font-bold uppercase">{candidate.major} • {candidate.gender}</p>
                     </div>
-                    <button 
-                      onClick={() => promptDeleteCandidate(candidate.id, candidate.name)} 
-                      className="text-red-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-full transition-colors"
-                    >
-                       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                    </button>
+                    <div className="flex gap-2">
+                         <button onClick={() => setEditCandidateModal(candidate)} className="text-cyan-400 hover:text-cyan-600 p-2 hover:bg-cyan-50 rounded-full transition-colors" title="Edit Info">
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                         </button>
+                         <button onClick={() => promptDeleteCandidate(candidate.id, candidate.name)} className="text-red-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-full transition-colors" title="Delete">
+                           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                        </button>
+                    </div>
                 </div>
                 ))}
             </div>
@@ -1017,159 +890,81 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                 <form onSubmit={handleAddCandidate} className="space-y-4">
                   <div>
                       <label className="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Name</label>
-                      <input 
-                        required 
-                        disabled={isAddingCandidate}
-                        value={newCandName} 
-                        onChange={e => setNewCandName(e.target.value)} 
-                        className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-sm rounded-lg focus:border-cyan-500 outline-none" 
-                      />
+                      <input required disabled={isAddingCandidate} value={newCandName} onChange={e => setNewCandName(e.target.value)} className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-sm rounded-lg focus:border-cyan-500 outline-none" />
                   </div>
                   <div>
                       <label className="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Candidate Number</label>
-                      <input 
-                        type="number"
-                        required 
-                        disabled={isAddingCandidate}
-                        value={newCandNumber} 
-                        onChange={e => setNewCandNumber(e.target.value)} 
-                        placeholder="e.g. 1"
-                        className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-sm rounded-lg focus:border-cyan-500 outline-none" 
-                      />
+                      <input type="number" required disabled={isAddingCandidate} value={newCandNumber} onChange={e => setNewCandNumber(e.target.value)} placeholder="e.g. 1" className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-sm rounded-lg focus:border-cyan-500 outline-none" />
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                      <div>
                         <label className="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Major</label>
                         <div className="relative">
-                            <select 
-                                disabled={isAddingCandidate}
-                                value={newCandMajor} 
-                                onChange={e => setNewCandMajor(e.target.value as Major)} 
-                                className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-xs rounded-lg appearance-none pr-8"
-                            >
+                            <select disabled={isAddingCandidate} value={newCandMajor} onChange={e => setNewCandMajor(e.target.value as Major)} className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-xs rounded-lg appearance-none pr-8">
                                 {STUDENT_MAJORS.map(m => <option key={m} value={m}>{m}</option>)}
                             </select>
-                            <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-slate-500">
-                                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                </svg>
-                            </div>
+                            <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-slate-500"><svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg></div>
                         </div>
                      </div>
                      <div>
                         <label className="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Gender</label>
                         <div className="relative">
-                            <select 
-                                disabled={isAddingCandidate}
-                                value={newCandGender} 
-                                onChange={e => setNewCandGender(e.target.value as any)} 
-                                className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-sm rounded-lg appearance-none pr-8"
-                            >
+                            <select disabled={isAddingCandidate} value={newCandGender} onChange={e => setNewCandGender(e.target.value as any)} className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-sm rounded-lg appearance-none pr-8">
                                 <option value="Male">Male</option>
                                 <option value="Female">Female</option>
                             </select>
-                            <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-slate-500">
-                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                </svg>
-                            </div>
+                            <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-slate-500"><svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg></div>
                         </div>
                      </div>
                   </div>
                   <div>
                       <label className="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Photo Upload</label>
-                      <input 
-                        type="file" 
-                        accept="image/*"
-                        disabled={isAddingCandidate}
-                        onChange={(e) => {
-                            if(e.target.files && e.target.files[0]) {
-                                setNewCandImageFile(e.target.files[0]);
-                            }
-                        }}
-                        className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-xs rounded-lg focus:border-cyan-500 outline-none file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-cyan-50 file:text-cyan-700 hover:file:bg-cyan-100" 
-                      />
+                      <input type="file" accept="image/*" disabled={isAddingCandidate} onChange={(e) => { if(e.target.files && e.target.files[0]) { setNewCandImageFile(e.target.files[0]); } }} className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-xs rounded-lg focus:border-cyan-500 outline-none file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-cyan-50 file:text-cyan-700 hover:file:bg-cyan-100" />
                       <p className="text-[10px] text-slate-400 mt-1">If no image is uploaded, a placeholder will be used.</p>
                   </div>
-                  <button 
-                    disabled={isAddingCandidate}
-                    className="w-full bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-3 rounded-lg disabled:opacity-50 flex justify-center uppercase text-xs tracking-wider shadow-md shadow-cyan-200"
-                  >
-                    {isAddingCandidate ? <span className="flex items-center gap-2"><Spinner /> Processing</span> : 'Add Candidate'}
-                  </button>
+                  <div>
+                      <label className="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Candidate Info / Bio</label>
+                      <textarea 
+                        value={newCandBio}
+                        onChange={(e) => setNewCandBio(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-sm rounded-lg focus:border-cyan-500 outline-none h-20 resize-none"
+                        placeholder="Enter brief bio..."
+                      />
+                  </div>
+                  <button disabled={isAddingCandidate} className="w-full bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-3 rounded-lg disabled:opacity-50 flex justify-center uppercase text-xs tracking-wider shadow-md shadow-cyan-200">{isAddingCandidate ? <span className="flex items-center gap-2"><Spinner /> Processing</span> : 'Add Candidate'}</button>
                 </form>
             </div>
             </div>
         )}
-
-        {/* Manage Students (Implemented) */}
+        
         {!isLoading && activeTab === 'students' && adminRole === AdminRole.SuperAdmin && (
             <div className="animate-fadeIn space-y-6">
-                
-                {/* Header & Controls */}
                 <div className="glass-panel bg-white p-4 rounded-xl flex flex-col md:flex-row justify-between items-center gap-4 border border-slate-200">
                     <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-start">
                         <div className="bg-cyan-50 text-cyan-700 px-4 py-2 rounded-lg border border-cyan-100 min-w-[120px]">
                              <span className="text-[10px] font-bold uppercase block tracking-wider opacity-70">Students</span>
-                             <div className="flex items-baseline gap-1">
-                                <span className="text-xl font-bold font-tech">{displayedStudents.length}</span>
-                                <span className="text-xs font-bold opacity-60">/ {students.filter(s => s.type !== 'Teacher').length}</span>
-                             </div>
+                             <div className="flex items-baseline gap-1"><span className="text-xl font-bold font-tech">{displayedStudents.length}</span><span className="text-xs font-bold opacity-60">/ {students.filter(s => s.type !== 'Teacher').length}</span></div>
                         </div>
                         <div className="bg-green-50 text-green-700 px-4 py-2 rounded-lg border border-green-100 min-w-[120px]">
                              <span className="text-[10px] font-bold uppercase block tracking-wider opacity-70">Voted</span>
-                             <div className="flex items-baseline gap-1">
-                                <span className="text-xl font-bold font-tech">{displayedStudents.filter(s => s.has_voted).length}</span>
-                                <span className="text-xs font-bold opacity-60">/ {students.filter(s => s.type !== 'Teacher' && s.has_voted).length}</span>
-                             </div>
+                             <div className="flex items-baseline gap-1"><span className="text-xl font-bold font-tech">{displayedStudents.filter(s => s.has_voted).length}</span><span className="text-xs font-bold opacity-60">/ {students.filter(s => s.type !== 'Teacher' && s.has_voted).length}</span></div>
                         </div>
                     </div>
-                    
-                    <button
-                        onClick={handleRefreshStudents}
-                        disabled={isRefreshing}
-                        className="bg-white border border-slate-300 text-slate-600 hover:text-cyan-600 hover:border-cyan-300 p-2 rounded-lg transition-colors shadow-sm"
-                        title="Refresh Student List"
-                    >
-                         {isRefreshing ? <Spinner /> : (
-                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                            </svg>
-                        )}
+                    <button onClick={handleRefreshStudents} disabled={isRefreshing} className="bg-white border border-slate-300 text-slate-600 hover:text-cyan-600 hover:border-cyan-300 p-2 rounded-lg transition-colors shadow-sm" title="Refresh Student List">
+                         {isRefreshing ? <Spinner /> : <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>}
                     </button>
                 </div>
-
                 <div className="grid lg:grid-cols-3 gap-8">
-                  {/* Students Table */}
                   <div className="lg:col-span-2">
                      <div className="glass-panel bg-white p-4 mb-4 rounded-xl flex flex-col gap-4 border border-slate-200">
-                         {/* Filters */}
                          <div className="flex flex-col md:flex-row gap-4">
-                             <input 
-                                type="text" 
-                                placeholder="Search Name or Roll No..." 
-                                value={studentSearch}
-                                onChange={(e) => setStudentSearch(e.target.value)}
-                                className="flex-1 bg-slate-50 border border-slate-300 p-2 text-slate-900 text-xs rounded-lg outline-none focus:border-cyan-500" 
-                             />
+                             <input type="text" placeholder="Search Name or Roll No..." value={studentSearch} onChange={(e) => setStudentSearch(e.target.value)} className="flex-1 bg-slate-50 border border-slate-300 p-2 text-slate-900 text-xs rounded-lg outline-none focus:border-cyan-500" />
                              <div className="flex gap-2 flex-wrap">
-                                <select value={filterYear} onChange={(e) => setFilterYear(e.target.value)} className="bg-slate-50 border border-slate-300 text-slate-800 text-xs rounded-lg px-3 py-2 outline-none h-[34px]">
-                                    <option value="All">All Years</option>
-                                    {Object.values(Year).filter(y => y !== Year.Staff).map(y => <option key={y} value={y}>{y}</option>)}
-                                </select>
-                                <select value={filterMajor} onChange={(e) => setFilterMajor(e.target.value)} className="bg-slate-50 border border-slate-300 text-slate-800 text-xs rounded-lg px-3 py-2 outline-none h-[34px]">
-                                    <option value="All">All Majors</option>
-                                    {STUDENT_MAJORS.map(m => <option key={m} value={m}>{m}</option>)}
-                                </select>
-                                <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as any)} className="bg-slate-50 border border-slate-300 text-slate-800 text-xs rounded-lg px-3 py-2 outline-none h-[34px]">
-                                    <option value="All">Status</option>
-                                    <option value="Voted">Voted</option>
-                                    <option value="Pending">Pending</option>
-                                </select>
+                                <select value={filterYear} onChange={(e) => setFilterYear(e.target.value)} className="bg-slate-50 border border-slate-300 text-slate-800 text-xs rounded-lg px-3 py-2 outline-none h-[34px]"><option value="All">All Years</option>{Object.values(Year).filter(y => y !== Year.Staff).map(y => <option key={y} value={y}>{y}</option>)}</select>
+                                <select value={filterMajor} onChange={(e) => setFilterMajor(e.target.value)} className="bg-slate-50 border border-slate-300 text-slate-800 text-xs rounded-lg px-3 py-2 outline-none h-[34px]"><option value="All">All Majors</option>{STUDENT_MAJORS.map(m => <option key={m} value={m}>{m}</option>)}</select>
+                                <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as any)} className="bg-slate-50 border border-slate-300 text-slate-800 text-xs rounded-lg px-3 py-2 outline-none h-[34px]"><option value="All">Status</option><option value="Voted">Voted</option><option value="Pending">Pending</option></select>
                              </div>
                          </div>
-                         
-                         {/* Bulk Actions */}
                          {selectedStudentIds.size > 0 && (
                             <div className="flex justify-between items-center bg-cyan-50 p-2 rounded-lg border border-cyan-100 animate-fadeIn">
                                 <span className="text-xs font-bold text-cyan-800 uppercase tracking-wider ml-2">{selectedStudentIds.size} Selected</span>
@@ -1181,19 +976,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                             </div>
                          )}
                      </div>
-
                      <div className="overflow-x-auto glass-panel bg-white rounded-xl max-h-[600px] overflow-y-auto custom-scrollbar border border-slate-200">
                          <table className="w-full text-left text-sm text-slate-600">
                             <thead className="text-xs uppercase bg-slate-100 text-slate-500 sticky top-0 z-10 backdrop-blur-md">
                               <tr>
-                                  <th className="px-4 py-3 w-10">
-                                      <input 
-                                        type="checkbox" 
-                                        onChange={() => toggleSelectAll(displayedStudents.map(s => s.id))}
-                                        checked={allDisplayedSelected}
-                                        className="rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
-                                      />
-                                  </th>
+                                  <th className="px-4 py-3 w-10"><input type="checkbox" onChange={() => toggleSelectAll(displayedStudents.map(s => s.id))} checked={allDisplayedSelected} className="rounded border-slate-300 text-cyan-600 focus:ring-cyan-500" /></th>
                                   <th className="px-4 py-3 whitespace-nowrap cursor-pointer hover:bg-slate-200" onClick={() => setStudentSort('roll')}>Roll No</th>
                                   <th className="px-4 py-3 whitespace-nowrap cursor-pointer hover:bg-slate-200" onClick={() => setStudentSort('name')}>Name</th>
                                   <th className="px-4 py-3 whitespace-nowrap">Major / Year</th>
@@ -1205,418 +992,175 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                                 {displayedStudents.length > 0 ? (
                                     displayedStudents.map((stud) => (
                                         <tr key={stud.id} className={`border-b border-slate-100 hover:bg-slate-50 ${selectedStudentIds.has(stud.id) ? 'bg-cyan-50/50' : ''}`}>
-                                            <td className="px-4 py-3">
-                                                <input 
-                                                    type="checkbox" 
-                                                    checked={selectedStudentIds.has(stud.id)}
-                                                    onChange={() => toggleStudentSelection(stud.id)}
-                                                    className="rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
-                                                />
-                                            </td>
+                                            <td className="px-4 py-3"><input type="checkbox" checked={selectedStudentIds.has(stud.id)} onChange={() => toggleStudentSelection(stud.id)} className="rounded border-slate-300 text-cyan-600 focus:ring-cyan-500" /></td>
                                             <td className="px-4 py-3 font-mono text-xs font-bold text-slate-500">{stud.roll_number}</td>
                                             <td className="px-4 py-3 font-bold text-slate-800 whitespace-nowrap">{stud.name}</td>
-                                            <td className="px-4 py-3 text-xs">
-                                                <div className="flex flex-col">
-                                                    <span className="font-bold text-slate-600">{stud.major}</span>
-                                                    <span className="text-slate-400">{stud.year}</span>
-                                                </div>
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                <button 
-                                                    onClick={() => handleStudentStatusChange(stud.id, !stud.has_voted)}
-                                                    className={`text-[10px] font-bold uppercase px-2 py-1 rounded border transition-colors ${stud.has_voted ? 'bg-green-50 text-green-600 border-green-200 hover:bg-red-50 hover:text-red-600 hover:border-red-200' : 'bg-slate-100 text-slate-400 border-slate-200 hover:bg-green-50 hover:text-green-600 hover:border-green-200'}`}
-                                                >
-                                                    {stud.has_voted ? 'Voted' : 'Pending'}
-                                                </button>
-                                            </td>
-                                            <td className="px-4 py-3 text-right">
-                                                <button 
-                                                    onClick={() => promptDeleteStudent(stud.id, stud.name)}
-                                                    className="text-red-400 hover:text-red-600 p-1 rounded hover:bg-red-50 transition-colors"
-                                                >
-                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                                </button>
-                                            </td>
+                                            <td className="px-4 py-3 text-xs"><div className="flex flex-col"><span className="font-bold text-slate-600">{stud.major}</span><span className="text-slate-400">{stud.year}</span></div></td>
+                                            <td className="px-4 py-3"><button onClick={() => handleStudentStatusChange(stud.id, !stud.has_voted)} className={`text-[10px] font-bold uppercase px-2 py-1 rounded border transition-colors ${stud.has_voted ? 'bg-green-50 text-green-600 border-green-200 hover:bg-red-50 hover:text-red-600 hover:border-red-200' : 'bg-slate-100 text-slate-400 border-slate-200 hover:bg-green-50 hover:text-green-600 hover:border-green-200'}`}>{stud.has_voted ? 'Voted' : 'Pending'}</button></td>
+                                            <td className="px-4 py-3 text-right"><button onClick={() => promptDeleteStudent(stud.id, stud.name)} className="text-red-400 hover:text-red-600 p-1 rounded hover:bg-red-50 transition-colors"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button></td>
                                         </tr>
                                     ))
-                                ) : (
-                                    <tr>
-                                        <td colSpan={6} className="px-4 py-8 text-center text-slate-400 font-mono text-xs">No students found matching filters.</td>
-                                    </tr>
-                                )}
+                                ) : (<tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400 font-mono text-xs">No students found matching filters.</td></tr>)}
                             </tbody>
                          </table>
                      </div>
                   </div>
-
-                  {/* Add Student Form */}
                   <div className="glass-panel bg-white p-6 h-fit sticky top-4 rounded-xl border border-slate-200">
                       <h3 className="text-lg font-tech text-slate-800 mb-4 uppercase tracking-wider">Authorize Student</h3>
                       <form onSubmit={handleAddStudent} className="space-y-4">
                         <div>
                             <label className="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Student Name</label>
-                            <input 
-                                required 
-                                disabled={isAddingStudent}
-                                value={newStudName} 
-                                onChange={e => setNewStudName(e.target.value)} 
-                                className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-sm rounded-lg focus:border-cyan-500 outline-none" 
-                            />
+                            <input required disabled={isAddingStudent} value={newStudName} onChange={e => setNewStudName(e.target.value)} className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-sm rounded-lg focus:border-cyan-500 outline-none" />
                         </div>
                         <div className="grid grid-cols-2 gap-2">
                              <div>
                                 <label className="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Year</label>
-                                <select 
-                                    disabled={isAddingStudent}
-                                    value={newStudYear} 
-                                    onChange={e => setNewStudYear(e.target.value as Year)} 
-                                    className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-xs rounded-lg appearance-none"
-                                >
-                                    {Object.values(Year).filter(y => y !== Year.Staff).map(y => <option key={y} value={y}>{y}</option>)}
-                                </select>
+                                <select disabled={isAddingStudent} value={newStudYear} onChange={e => setNewStudYear(e.target.value as Year)} className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-xs rounded-lg appearance-none">{Object.values(Year).filter(y => y !== Year.Staff).map(y => <option key={y} value={y}>{y}</option>)}</select>
                              </div>
                              <div>
                                 <label className="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Major</label>
-                                <select 
-                                    disabled={isAddingStudent}
-                                    value={newStudMajor} 
-                                    onChange={e => setNewStudMajor(e.target.value as Major)} 
-                                    className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-xs rounded-lg appearance-none"
-                                >
-                                    {STUDENT_MAJORS.map(m => <option key={m} value={m}>{m}</option>)}
-                                </select>
+                                <select disabled={isAddingStudent} value={newStudMajor} onChange={e => setNewStudMajor(e.target.value as Major)} className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-xs rounded-lg appearance-none">{STUDENT_MAJORS.map(m => <option key={m} value={m}>{m}</option>)}</select>
                              </div>
                         </div>
                         <div>
                             <label className="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Roll Number</label>
-                            <input 
-                                required 
-                                disabled={isAddingStudent}
-                                value={newStudRoll} 
-                                onChange={e => setNewStudRoll(e.target.value)} 
-                                className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-sm rounded-lg focus:border-cyan-500 outline-none" 
-                                placeholder="e.g. 1"
-                            />
+                            <input required disabled={isAddingStudent} value={newStudRoll} onChange={e => setNewStudRoll(e.target.value)} className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-sm rounded-lg focus:border-cyan-500 outline-none" placeholder="e.g. 1" />
                         </div>
                         <div>
                             <label className="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Passcode</label>
                             <div className="relative">
-                                <input 
-                                    type={showStudentPasscode ? 'text' : 'password'}
-                                    required 
-                                    disabled={isAddingStudent}
-                                    value={newStudPasscode} 
-                                    onChange={e => setNewStudPasscode(e.target.value)} 
-                                    className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-sm rounded-lg focus:border-cyan-500 outline-none pr-8" 
-                                />
-                                <button type="button" onClick={() => setShowStudentPasscode(!showStudentPasscode)} className="absolute inset-y-0 right-0 px-2 text-slate-400">
-                                   {showStudentPasscode ? 'Hide' : 'Show'}
-                                </button>
+                                <input type={showStudentPasscode ? 'text' : 'password'} required disabled={isAddingStudent} value={newStudPasscode} onChange={e => setNewStudPasscode(e.target.value)} className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-sm rounded-lg focus:border-cyan-500 outline-none pr-8" />
+                                <button type="button" onClick={() => setShowStudentPasscode(!showStudentPasscode)} className="absolute inset-y-0 right-0 px-2 text-slate-400">{showStudentPasscode ? 'Hide' : 'Show'}</button>
                             </div>
                         </div>
-
-                        <button 
-                            disabled={isAddingStudent}
-                            className="w-full bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-3 rounded-lg disabled:opacity-50 flex justify-center uppercase text-xs tracking-wider shadow-md shadow-cyan-200"
-                        >
-                            {isAddingStudent ? <Spinner /> : 'Add Student'}
-                        </button>
+                        <button disabled={isAddingStudent} className="w-full bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-3 rounded-lg disabled:opacity-50 flex justify-center uppercase text-xs tracking-wider shadow-md shadow-cyan-200">{isAddingStudent ? <Spinner /> : 'Add Student'}</button>
                       </form>
                   </div>
                 </div>
             </div>
         )}
-
-        {/* Passcode Management */}
-        {!isLoading && activeTab === 'passcodes' && adminRole === AdminRole.SuperAdmin && (
-            <div className="animate-fadeIn space-y-4">
-                <div className="glass-panel bg-white p-4 rounded-xl flex flex-col md:flex-row justify-between items-center gap-4 border border-slate-200">
-                    <div className="flex-1 w-full">
-                       <label className="text-[10px] text-slate-500 font-bold uppercase block mb-1">Search Class or Code</label>
-                       <input 
-                           type="text" 
-                           placeholder="Type to search..." 
-                           value={passcodeSearch}
-                           onChange={(e) => setPasscodeSearch(e.target.value)}
-                           className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-xs rounded-lg outline-none focus:border-cyan-500" 
-                       />
-                    </div>
-                    
-                    <div className="flex gap-2 w-full md:w-auto">
-                         <div className="relative flex-1 md:flex-none">
-                            <select value={passcodeFilterYear} onChange={e => setPasscodeFilterYear(e.target.value)} className="w-full bg-slate-50 border border-slate-300 text-slate-800 text-xs rounded-lg px-3 py-2 outline-none appearance-none pr-8">
-                                <option value="All">All Years</option>
-                                {Object.values(Year).map(y => <option key={y} value={y}>{y}</option>)}
-                            </select>
-                            <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-slate-500">
-                                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                            </div>
-                        </div>
-                        <div className="relative flex-1 md:flex-none">
-                            <select value={passcodeFilterMajor} onChange={e => setPasscodeFilterMajor(e.target.value)} className="w-full bg-slate-50 border border-slate-300 text-slate-800 text-xs rounded-lg px-3 py-2 outline-none appearance-none pr-8">
-                                <option value="All">All Majors</option>
-                                {Object.values(Major).map(m => <option key={m} value={m}>{m}</option>)}
-                            </select>
-                            <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-slate-500">
-                                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="overflow-hidden glass-panel bg-white rounded-xl border border-slate-200">
-                    <table className="w-full text-left text-sm text-slate-600">
-                        <thead className="text-xs uppercase bg-slate-100 text-slate-500">
-                            <tr>
-                                <th className="px-6 py-4 font-bold tracking-wider">Academic Year</th>
-                                <th className="px-6 py-4 font-bold tracking-wider">Major / Department</th>
-                                <th className="px-6 py-4 font-bold tracking-wider">Current Passcode</th>
-                                <th className="px-6 py-4 text-right">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                           {passcodesList
-                             .filter(p => 
-                                (passcodeSearch === '' || 
-                                 p.major.toLowerCase().includes(passcodeSearch.toLowerCase()) || 
-                                 p.year.toLowerCase().includes(passcodeSearch.toLowerCase()) ||
-                                 p.currentCode.toLowerCase().includes(passcodeSearch.toLowerCase()))
-                             )
-                             .map((item) => (
-                               <tr key={`${item.year}-${item.major}`} className="hover:bg-slate-50 transition-colors">
-                                   <td className="px-6 py-4">
-                                       <span className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs font-bold uppercase">{item.year}</span>
-                                   </td>
-                                   <td className="px-6 py-4 font-bold text-slate-800">{item.major}</td>
-                                   <td className="px-6 py-4">
-                                       <span className="font-mono font-bold text-cyan-700 bg-cyan-50 px-3 py-1 rounded border border-cyan-100 tracking-wider">
-                                          {item.currentCode}
-                                       </span>
-                                   </td>
-                                   <td className="px-6 py-4 text-right">
-                                       <button 
-                                            onClick={() => setEditingPasscode({ year: item.year, major: item.major, code: item.currentCode })}
-                                            className="text-cyan-600 hover:text-cyan-800 font-bold text-xs uppercase hover:underline"
-                                       >
-                                            Edit
-                                       </button>
-                                   </td>
-                               </tr>
-                           ))}
-                           {passcodesList.filter(p => 
-                                (passcodeSearch === '' || 
-                                 p.major.toLowerCase().includes(passcodeSearch.toLowerCase()) || 
-                                 p.year.toLowerCase().includes(passcodeSearch.toLowerCase()) ||
-                                 p.currentCode.toLowerCase().includes(passcodeSearch.toLowerCase()))
-                             ).length === 0 && (
-                               <tr><td colSpan={4} className="px-6 py-8 text-center text-slate-400 italic">No classes found.</td></tr>
-                           )}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        )}
-
-        {/* Manage Teachers */}
         {!isLoading && activeTab === 'teachers' && adminRole === AdminRole.SuperAdmin && (
-            <div className="grid lg:grid-cols-3 gap-8 animate-fadeIn">
-              <div className="lg:col-span-2">
-                 <div className="glass-panel bg-white p-4 mb-4 rounded-xl flex flex-col gap-4 border border-slate-200">
-                    <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-                        <h4 className="font-bold text-slate-700 text-xs uppercase tracking-wider">Teacher List</h4>
-                        <span className="bg-cyan-50 text-cyan-700 text-[10px] font-bold px-3 py-1 rounded border border-cyan-100 uppercase">
-                            Total: {displayedTeachers.length}
-                        </span>
-                    </div>
-
-                    <div className="flex flex-col sm:flex-row gap-4">
-                        <div className="flex-1">
-                            <label className="text-[10px] text-slate-500 font-bold uppercase block mb-1">Search Teacher</label>
-                            <input 
-                                type="text" 
-                                placeholder="Name..." 
-                                value={teacherSearch}
-                                onChange={(e) => setTeacherSearch(e.target.value)}
-                                className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-xs rounded-lg outline-none focus:border-cyan-500" 
-                            />
-                        </div>
-                        <div>
-                            <label className="text-[10px] text-slate-500 font-bold uppercase block mb-1">Department</label>
-                            <div className="relative min-w-[150px]">
-                                <select value={filterTeacherMajor} onChange={e => setFilterTeacherMajor(e.target.value)} className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-xs rounded-lg outline-none appearance-none pr-8">
-                                    <option value="All">All Departments</option>
-                                    {Object.values(Major).map(m => <option key={m} value={m}>{m}</option>)}
-                                </select>
-                                <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-slate-500">
-                                    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                    </svg>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                 </div>
-                 
-                 <div className="overflow-x-auto glass-panel bg-white rounded-xl max-h-[600px] overflow-y-auto custom-scrollbar border border-slate-200">
-                    <table className="w-full text-left text-sm text-slate-600">
-                        <thead className="text-xs uppercase bg-slate-100 text-slate-500 sticky top-0 z-10 backdrop-blur-md">
-                          <tr>
-                              <th className="px-4 py-3 whitespace-nowrap">Name</th>
-                              <th className="px-4 py-3 whitespace-nowrap">Department</th>
-                              <th className="px-4 py-3 whitespace-nowrap">Status</th>
-                              <th className="px-4 py-3 whitespace-nowrap">Action</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {displayedTeachers.length > 0 ? (
-                            displayedTeachers.map((teach) => (
-                              <tr key={teach.id} className="border-b border-slate-100 hover:bg-slate-50">
-                                <td className="px-4 py-3 font-bold text-slate-800 whitespace-nowrap">{teach.name}</td>
-                                <td className="px-4 py-3 text-xs whitespace-nowrap font-mono text-cyan-700 bg-cyan-50 rounded px-2 w-fit">{teach.major}</td>
-                                <td className="px-4 py-3">
-                                   {teach.has_voted 
-                                     ? <span className="text-green-600 font-bold text-[10px] uppercase">Voted</span>
-                                     : <span className="text-slate-400 font-bold text-[10px] uppercase">Pending</span>
-                                   }
-                                </td>
-                                <td className="px-4 py-3">
-                                    <button 
-                                      onClick={() => promptDeleteTeacher(teach.id, teach.name)} 
-                                      className="text-red-500 hover:text-red-700 text-xs font-bold"
-                                    >
-                                      Remove
-                                    </button>
-                                </td>
-                              </tr>
-                            ))
-                          ) : (
-                             <tr>
-                               <td colSpan={4} className="px-4 py-8 text-center text-slate-400 font-mono text-xs">No teachers found.</td>
-                             </tr>
-                          )}
-                        </tbody>
-                    </table>
-                 </div>
-              </div>
-
-              <div className="glass-panel bg-white p-6 h-fit sticky top-4 rounded-xl border border-slate-200">
+             <div className="grid lg:grid-cols-3 gap-8 animate-fadeIn">
+               <div className="lg:col-span-2">
+                  <div className="glass-panel bg-white p-4 mb-4 rounded-xl flex flex-col gap-4 border border-slate-200">
+                     <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                         <h4 className="font-bold text-slate-700 text-xs uppercase tracking-wider">Teacher List</h4>
+                         <span className="bg-cyan-50 text-cyan-700 text-[10px] font-bold px-3 py-1 rounded border border-cyan-100 uppercase">Total: {displayedTeachers.length}</span>
+                     </div>
+                     <div className="flex flex-col sm:flex-row gap-4">
+                         <div className="flex-1"><label className="text-[10px] text-slate-500 font-bold uppercase block mb-1">Search Teacher</label><input type="text" placeholder="Name..." value={teacherSearch} onChange={(e) => setTeacherSearch(e.target.value)} className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-xs rounded-lg outline-none focus:border-cyan-500" /></div>
+                         <div><label className="text-[10px] text-slate-500 font-bold uppercase block mb-1">Department</label><div className="relative min-w-[150px]"><select value={filterTeacherMajor} onChange={e => setFilterTeacherMajor(e.target.value)} className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-xs rounded-lg outline-none appearance-none pr-8"><option value="All">All Departments</option>{Object.values(Major).map(m => <option key={m} value={m}>{m}</option>)}</select>
+                         <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-slate-500"><svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg></div>
+                         </div></div>
+                     </div>
+                     <div className="overflow-x-auto glass-panel bg-white rounded-xl max-h-[600px] overflow-y-auto custom-scrollbar border border-slate-200">
+                        <table className="w-full text-left text-sm text-slate-600">
+                            <thead className="text-xs uppercase bg-slate-100 text-slate-500 sticky top-0 z-10 backdrop-blur-md">
+                                <tr>
+                                    <th className="px-4 py-3">Name</th>
+                                    <th className="px-4 py-3">Department</th>
+                                    <th className="px-4 py-3">Status</th>
+                                    <th className="px-4 py-3 text-right">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {displayedTeachers.length > 0 ? (
+                                    displayedTeachers.map(t => (
+                                        <tr key={t.id} className="border-b border-slate-100 hover:bg-slate-50">
+                                            <td className="px-4 py-3 font-bold text-slate-800">{t.name}</td>
+                                            <td className="px-4 py-3 text-xs font-bold text-slate-500">{t.major}</td>
+                                            <td className="px-4 py-3"><span className={`text-[10px] font-bold uppercase px-2 py-1 rounded border ${t.has_voted ? 'bg-green-50 text-green-600 border-green-200' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>{t.has_voted ? 'Voted' : 'Pending'}</span></td>
+                                            <td className="px-4 py-3 text-right"><button onClick={() => promptDeleteTeacher(t.id, t.name)} className="text-red-400 hover:text-red-600 p-1 rounded hover:bg-red-50 transition-colors"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button></td>
+                                        </tr>
+                                    ))
+                                ) : (<tr><td colSpan={4} className="px-4 py-8 text-center text-slate-400 font-mono text-xs">No teachers found.</td></tr>)}
+                            </tbody>
+                        </table>
+                     </div>
+                  </div>
+               </div>
+               <div className="glass-panel bg-white p-6 h-fit sticky top-4 rounded-xl border border-slate-200">
                   <h3 className="text-lg font-tech text-slate-800 mb-4 uppercase tracking-wider">Add Teacher</h3>
                   <form onSubmit={handleAddTeacher} className="space-y-4">
-                     <div>
-                        <label className="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Teacher Name</label>
-                        <input 
-                          required 
-                          disabled={isAddingTeacher}
-                          value={newTeacherName} 
-                          onChange={e => setNewTeacherName(e.target.value)} 
-                          className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-sm rounded-lg outline-none focus:border-cyan-500" 
-                        />
-                     </div>
-                     <div>
+                      <div>
+                        <label className="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Name</label>
+                        <input required disabled={isAddingTeacher} value={newTeacherName} onChange={e => setNewTeacherName(e.target.value)} className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-sm rounded-lg focus:border-cyan-500 outline-none" />
+                      </div>
+                      <div>
                         <label className="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Department</label>
                         <div className="relative">
-                            <select 
-                                disabled={isAddingTeacher}
-                                value={newTeacherMajor} 
-                                onChange={e => setNewTeacherMajor(e.target.value as Major)} 
-                                className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-xs rounded-lg appearance-none pr-8"
-                            >
+                            <select disabled={isAddingTeacher} value={newTeacherMajor} onChange={e => setNewTeacherMajor(e.target.value as Major)} className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-xs rounded-lg outline-none appearance-none pr-8">
                                 {Object.values(Major).map(m => <option key={m} value={m}>{m}</option>)}
                             </select>
-                            <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-slate-500">
-                                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                </svg>
-                            </div>
+                            <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-slate-500"><svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg></div>
                         </div>
-                     </div>
-                     <div>
-                        <label className="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Department Passcode</label>
-                        <div className="relative">
-                            <input 
-                            required 
-                            disabled={isAddingTeacher}
-                            value={newTeacherPasscode} 
-                            onChange={e => setNewTeacherPasscode(e.target.value)} 
-                            type={showTeacherPasscode ? 'text' : 'password'}
-                            className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-sm rounded-lg outline-none focus:border-cyan-500 pr-10" 
-                            />
-                            <button 
-                            type="button" 
-                            onClick={() => setShowTeacherPasscode(!showTeacherPasscode)}
-                            className="absolute inset-y-0 right-0 flex items-center px-2 text-slate-400 hover:text-cyan-600 transition-colors"
-                            >
-                            {showTeacherPasscode ? (
-                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-                                </svg>
-                            ) : (
-                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                </svg>
-                            )}
-                            </button>
-                        </div>
-                     </div>
-                     
-                     <button 
-                       disabled={isAddingTeacher}
-                       className="w-full bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-3 rounded-lg disabled:opacity-50 flex justify-center uppercase text-xs tracking-wider shadow-md shadow-cyan-200"
-                     >
-                       {isAddingTeacher ? <span className="flex items-center gap-2"><Spinner /> Processing</span> : 'Add Teacher'}
-                     </button>
+                      </div>
+                      <div>
+                          <label className="text-[10px] text-slate-500 font-bold uppercase mb-1 block">Passcode</label>
+                          <div className="relative">
+                              <input type={showTeacherPasscode ? 'text' : 'password'} required disabled={isAddingTeacher} value={newTeacherPasscode} onChange={e => setNewTeacherPasscode(e.target.value)} className="w-full bg-slate-50 border border-slate-300 p-2 text-slate-900 text-sm rounded-lg focus:border-cyan-500 outline-none pr-8" />
+                              <button type="button" onClick={() => setShowTeacherPasscode(!showTeacherPasscode)} className="absolute inset-y-0 right-0 px-2 text-slate-400">{showTeacherPasscode ? 'Hide' : 'Show'}</button>
+                          </div>
+                      </div>
+                      <button disabled={isAddingTeacher} className="w-full bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-3 rounded-lg disabled:opacity-50 flex justify-center uppercase text-xs tracking-wider shadow-md shadow-cyan-200">{isAddingTeacher ? <Spinner /> : 'Add Teacher'}</button>
                   </form>
-              </div>
+               </div>
+             </div>
+        )}
+
+        {!isLoading && activeTab === 'passcodes' && adminRole === AdminRole.SuperAdmin && (
+            <div className="animate-fadeIn space-y-6">
+                <div className="glass-panel bg-white p-4 rounded-xl flex flex-col md:flex-row gap-4 border border-slate-200">
+                    <input type="text" placeholder="Search..." value={passcodeSearch} onChange={(e) => setPasscodeSearch(e.target.value)} className="flex-1 bg-slate-50 border border-slate-300 p-2 text-slate-900 text-xs rounded-lg outline-none focus:border-cyan-500" />
+                    <div className="flex gap-2">
+                         <select value={passcodeFilterYear} onChange={e => setPasscodeFilterYear(e.target.value)} className="bg-slate-50 border border-slate-300 text-slate-800 text-xs rounded-lg px-3 py-2 outline-none"><option value="All">All Years</option>{Object.values(Year).map(y => <option key={y} value={y}>{y}</option>)}</select>
+                         <select value={passcodeFilterMajor} onChange={e => setPasscodeFilterMajor(e.target.value)} className="bg-slate-50 border border-slate-300 text-slate-800 text-xs rounded-lg px-3 py-2 outline-none"><option value="All">All Majors</option>{Object.values(Major).map(m => <option key={m} value={m}>{m}</option>)}</select>
+                    </div>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                    {passcodesList.filter(p => {
+                        const matchSearch = p.currentCode.toLowerCase().includes(passcodeSearch.toLowerCase()) || p.year.toLowerCase().includes(passcodeSearch.toLowerCase()) || p.major.toLowerCase().includes(passcodeSearch.toLowerCase());
+                        return matchSearch;
+                    }).map((p, idx) => (
+                        <div key={idx} className="bg-white border border-slate-200 p-4 rounded-xl flex flex-col justify-between shadow-sm hover:shadow-md transition-all">
+                             <div>
+                                <h5 className="font-bold text-slate-800 text-xs uppercase mb-1">{p.major}</h5>
+                                <span className="text-[10px] text-slate-400 font-bold uppercase block mb-3">{p.year}</span>
+                             </div>
+                             <div className="flex justify-between items-end">
+                                <span className="font-mono font-bold text-cyan-600 text-sm tracking-wider bg-cyan-50 px-2 py-1 rounded border border-cyan-100">{p.currentCode}</span>
+                                <button onClick={() => setEditingPasscode({year: p.year, major: p.major, code: p.currentCode})} className="text-slate-400 hover:text-cyan-600 p-1"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></button>
+                             </div>
+                        </div>
+                    ))}
+                </div>
             </div>
         )}
 
-        {/* Settings View (SuperAdmin Only) */}
         {!isLoading && activeTab === 'settings' && adminRole === AdminRole.SuperAdmin && (
-           <div className="glass-panel bg-white p-8 max-w-2xl mx-auto rounded-xl animate-fadeIn border border-slate-200">
-              <h3 className="text-xl font-tech text-slate-800 mb-6 uppercase tracking-wider">Event Configuration</h3>
-              
-              <div className="mb-8">
-                 <label className="text-xs text-cyan-600 font-bold uppercase block mb-2">Voting Start Time</label>
-                 <p className="text-slate-500 text-sm mb-4">Set the exact date and time when the voting countdown ends and students can start selecting candidates.</p>
-                 <div className="flex flex-col gap-4">
-                    <input 
-                       type="datetime-local" 
-                       value={editingEventTime}
-                       onChange={(e) => setEditingEventTime(e.target.value)}
-                       className="bg-slate-50 border border-slate-300 text-slate-900 px-4 py-3 rounded-lg outline-none focus:border-cyan-500 w-full font-mono text-sm"
-                    />
-                    
-                    <div className="flex flex-col sm:flex-row gap-4">
-                        <button 
-                           onClick={handleUpdateEventTime}
-                           disabled={isUpdatingTime}
-                           className="flex-1 bg-cyan-600 hover:bg-cyan-700 text-white font-bold px-6 py-3 rounded-lg uppercase text-xs tracking-wider flex justify-center items-center shadow-md shadow-cyan-200 transition-all"
-                        >
-                           {isUpdatingTime ? <Spinner /> : 'Update Timer'}
-                        </button>
-                        
-                        <button 
-                            onClick={handleStartImmediately}
-                            disabled={isUpdatingTime}
-                            className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold px-6 py-3 rounded-lg uppercase text-xs tracking-wider flex justify-center items-center shadow-md shadow-green-200 transition-all gap-2"
-                        >
-                            {isUpdatingTime ? <Spinner /> : (
-                                <>
-                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                                  Start Now
-                                </>
-                            )}
-                        </button>
-                    </div>
+             <div className="animate-fadeIn max-w-2xl mx-auto space-y-8">
+                 <div className="glass-panel bg-white p-6 rounded-xl border border-slate-200">
+                     <h3 className="text-lg font-tech text-slate-800 mb-4 uppercase tracking-wider">Event Timing</h3>
+                     <div className="flex flex-col gap-4">
+                        <div>
+                             <label className="text-xs text-slate-500 font-bold uppercase mb-2 block">Event Start Time (Local)</label>
+                             <input type="datetime-local" value={editingEventTime} onChange={(e) => setEditingEventTime(e.target.value)} className="w-full bg-slate-50 border border-slate-300 p-3 text-slate-900 text-sm rounded-lg outline-none focus:border-cyan-500" />
+                        </div>
+                        <button onClick={handleUpdateEventTime} disabled={isUpdatingTime} className="bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-3 rounded-lg flex justify-center uppercase text-xs tracking-wider shadow-md shadow-cyan-200">{isUpdatingTime ? <Spinner /> : 'Update Event Time'}</button>
+                     </div>
                  </div>
-              </div>
 
-              <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 mt-8">
-                 <p className="text-xs text-slate-500">Note: Updating the timer affects all users immediately. Make sure to set the correct local time.</p>
-              </div>
-           </div>
+                 <div className="glass-panel bg-red-50 p-6 rounded-xl border border-red-200">
+                     <h3 className="text-lg font-tech text-red-700 mb-4 uppercase tracking-wider flex items-center gap-2">
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                        Danger Zone
+                     </h3>
+                     <p className="text-sm text-red-600 mb-6">Resetting votes will clear all voting data. This action is irreversible.</p>
+                     <button onClick={initiateResetVotes} disabled={isResettingVotes} className="w-full bg-white border border-red-300 text-red-600 hover:bg-red-100 font-bold py-3 rounded-lg flex justify-center uppercase text-xs tracking-wider shadow-sm transition-colors">{isResettingVotes ? <Spinner /> : 'Reset All Votes'}</button>
+                 </div>
+             </div>
         )}
+
       </div>
     </div>
   );

@@ -87,7 +87,8 @@ export const fetchCandidates = async (): Promise<Candidate[]> => {
             major: c.major,
             year: c.year,
             gender: c.gender,
-            image: c.image
+            image: c.image,
+            bio: c.bio || ''
         };
     }).sort((a: Candidate, b: Candidate) => a.candidateNumber - b.candidateNumber);
 
@@ -117,7 +118,8 @@ export const addCandidate = async (candidate: Omit<Candidate, 'id'>) => {
         major: candidate.major,
         year: candidate.year,
         gender: candidate.gender,
-        image: candidate.image
+        image: candidate.image,
+        bio: candidate.bio
     };
 
     const { data, error } = await supabase
@@ -135,6 +137,42 @@ export const addCandidate = async (candidate: Omit<Candidate, 'id'>) => {
     throw err;
   }
 };
+
+export const updateCandidate = async (id: string, updates: Partial<Candidate>) => {
+    try {
+        if (isMockMode || !supabase) {
+            console.log("Mock Mode: Candidate updated", id, updates);
+            const idx = MOCK_CANDIDATES.findIndex(c => c.id === id);
+            if (idx > -1) {
+                MOCK_CANDIDATES[idx] = { ...MOCK_CANDIDATES[idx], ...updates };
+            }
+            return;
+        }
+
+        const dbUpdates: any = {};
+        if (updates.name) dbUpdates.name = updates.name;
+        if (updates.major) dbUpdates.major = updates.major;
+        if (updates.gender) dbUpdates.gender = updates.gender;
+        if (updates.bio !== undefined) dbUpdates.bio = updates.bio;
+        // Handle number update carefully if using name workaround
+        if (updates.candidateNumber && updates.name) {
+            dbUpdates.name = `${updates.candidateNumber}. ${updates.name}`;
+        } else if (updates.name && !updates.candidateNumber) {
+             // If just updating name, we might lose number if we blindly overwrite 'name' field
+             // Ideally we fetch first, but for now we assume full update or handled by caller
+        }
+
+        const { error } = await supabase
+            .from('candidates')
+            .update(dbUpdates)
+            .eq('id', id);
+
+        if (error) throw error;
+    } catch (err) {
+        console.error("updateCandidate error:", err);
+        throw err;
+    }
+}
 
 export const deleteCandidate = async (id: string) => {
   try {

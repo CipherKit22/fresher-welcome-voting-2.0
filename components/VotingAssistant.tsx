@@ -5,7 +5,7 @@ const VotingAssistant: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
 
   const handleJoinClick = () => {
-    window.open("https://t.me/+KjSNUckqbHtjYjI9", "_blank");
+    window.open("https://t.me/+bsj588-wucYwNjll", "_blank");
     setShowModal(false);
   };
 

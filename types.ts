@@ -51,6 +51,7 @@ export interface Candidate {
   year?: string; 
   gender: 'Male' | 'Female';
   image: string;
+  bio?: string;
 }
 
 export interface Votes {
