@@ -79,7 +79,11 @@ const resizeImage = (file: File): Promise<string> => {
 };
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) => {
-  const [activeTab, setActiveTab] = useState<'results' | 'candidates' | 'students' | 'teachers' | 'passcodes' | 'settings'>('results');
+  // If Volunteer, default to students tab. Otherwise results.
+  const [activeTab, setActiveTab] = useState<'results' | 'candidates' | 'students' | 'teachers' | 'passcodes' | 'settings'>(
+    adminRole === AdminRole.Volunteer ? 'students' : 'results'
+  );
+  
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [students, setStudents] = useState<any[]>([]);
   const [votes, setVotes] = useState<Record<string, Record<string, number>>>({
@@ -165,15 +169,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
 
   const canEdit = adminRole === AdminRole.SuperAdmin;
   const canViewSensitiveData = adminRole === AdminRole.SuperAdmin || adminRole === AdminRole.Volunteer;
+  const canViewResults = adminRole !== AdminRole.Volunteer;
 
   useEffect(() => {
     loadData();
     const interval = setInterval(() => {
-        loadResultsOnly();
+        // Volunteer doesn't see results, no need to poll them intensely, but status is good
+        if (canViewResults) loadResultsOnly();
         updateStatus();
     }, 1000); 
     return () => clearInterval(interval);
-  }, []);
+  }, [adminRole]);
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
       setToast({ message, type });
@@ -183,7 +189,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
     setIsLoading(true);
     try {
       await Promise.all([
-        loadResultsOnly(),
+        canViewResults ? loadResultsOnly() : Promise.resolve(),
         loadCandidates(),
         canViewSensitiveData ? loadStudents() : Promise.resolve(),
         loadEventTime()
@@ -214,6 +220,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   };
 
   const loadResultsOnly = async () => {
+    if (!canViewResults) return;
     const { tally, totalVotes } = await fetchVoteResults();
     const totalStudents = await fetchTotalStudentCount();
     const totalTeachers = await fetchTotalTeacherCount();
@@ -675,6 +682,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
       );
   };
 
+  // Determine available tabs based on permissions
+  const availableTabs = [
+    ...(canViewResults ? ['results'] : []),
+    ...(canViewSensitiveData ? ['students', 'passcodes'] : []), // Removed teachers for volunteer if simplified view desired, but prompt implied list. I'll remove teachers for volunteer to keep it simple as they asked for student list. Actually, prompt said "find student data list". I'll keep it simple and omit teachers/candidates/settings for volunteer.
+    // If admin is volunteer, remove 'teachers'. If superadmin or admin, show 'teachers'.
+    ...(canViewSensitiveData && adminRole !== AdminRole.Volunteer ? ['teachers'] : []),
+    ...(canEdit ? ['candidates', 'settings'] : [])
+  ];
+
   return (
     <div className="w-full max-w-6xl mx-auto p-4 animate-fadeIn relative pb-20">
       
@@ -773,7 +789,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
         </div>
       )}
 
-      {voteDetailModal && (
+      {voteDetailModal && canViewResults && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4" onClick={() => setVoteDetailModal(null)}>
           <div className="bg-white max-w-sm w-full p-6 rounded-xl shadow-2xl border border-slate-200" onClick={e => e.stopPropagation()}>
             <div className="text-center">
@@ -816,17 +832,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                   </div>
               )}
           </div>
-          <div className="flex flex-col sm:flex-row gap-2 sm:gap-6 mt-2">
-            <p className="text-slate-500 font-medium text-sm">Total Votes Cast: <span className="text-slate-900 font-bold">{totalVotes}</span></p>
-            <p className="text-slate-500 font-medium text-sm">Registered Students: <span className="text-slate-900 font-bold">{totalStudentCount}</span></p>
-            <p className="text-slate-500 font-medium text-sm">Teachers: <span className="text-slate-900 font-bold">{totalTeacherCount}</span></p>
-          </div>
+          {/* Hide totals for volunteer */}
+          {canViewResults && (
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-6 mt-2">
+                <p className="text-slate-500 font-medium text-sm">Total Votes Cast: <span className="text-slate-900 font-bold">{totalVotes}</span></p>
+                <p className="text-slate-500 font-medium text-sm">Registered Students: <span className="text-slate-900 font-bold">{totalStudentCount}</span></p>
+                <p className="text-slate-500 font-medium text-sm">Teachers: <span className="text-slate-900 font-bold">{totalTeacherCount}</span></p>
+              </div>
+          )}
         </div>
         <button onClick={onLogout} className="w-full md:w-auto border border-slate-300 hover:bg-slate-100 text-slate-600 px-5 py-2 font-bold text-xs uppercase tracking-wider rounded-lg transition-colors">Logout</button>
       </div>
 
       <div className="mb-8 p-1 bg-slate-200/50 rounded-xl inline-flex overflow-hidden flex-wrap gap-1">
-        {['results', ...(canViewSensitiveData ? ['students', 'teachers', 'passcodes'] : []), ...(canEdit ? ['candidates', 'settings'] : [])].map((tab) => (
+        {availableTabs.map((tab) => (
             <button key={tab} onClick={() => setActiveTab(tab as any)} className={`px-6 py-2.5 text-xs font-bold uppercase tracking-widest rounded-lg transition-all duration-300 ${activeTab === tab ? 'bg-white text-cyan-700 shadow-md transform scale-100' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}>{tab}</button>
         ))}
       </div>
@@ -834,7 +853,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
       <div className="min-h-[500px] relative">
         {isLoading && <div className="absolute inset-0 flex items-center justify-center bg-white/50 backdrop-blur-sm z-40 rounded-xl"><div className="text-cyan-600 font-bold text-sm uppercase tracking-widest flex items-center gap-3"><LargeSpinner /> Syncing Database...</div></div>}
 
-        {!isLoading && activeTab === 'results' && (
+        {!isLoading && activeTab === 'results' && canViewResults && (
             <div className="space-y-8 animate-fadeIn">
               <div className="flex justify-between items-center mb-4">
                  <div className="flex-1"></div>
@@ -1052,7 +1071,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                 </div>
             </div>
         )}
-        {!isLoading && activeTab === 'teachers' && canViewSensitiveData && (
+        {!isLoading && activeTab === 'teachers' && canViewSensitiveData && adminRole !== AdminRole.Volunteer && (
              <div className="grid lg:grid-cols-3 gap-8 animate-fadeIn">
                <div className={canEdit ? "lg:col-span-2" : "lg:col-span-3"}>
                   <div className="glass-panel bg-white p-4 mb-4 rounded-xl flex flex-col gap-4 border border-slate-200">
