@@ -393,12 +393,18 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
           filtered = filtered.filter(s => s.name.toLowerCase().includes(lower) || s.roll_number.toLowerCase().includes(lower));
       }
       
-      // Filters (Case Insensitive to handle inconsistencies)
+      // Filters (Case Insensitive and trimmed for robustness)
       if (filterYear !== 'All') {
-          filtered = filtered.filter(s => s.year.toLowerCase() === filterYear.toLowerCase());
+          filtered = filtered.filter(s => s.year.trim().toLowerCase() === filterYear.trim().toLowerCase());
       }
       if (filterMajor !== 'All') {
-          filtered = filtered.filter(s => s.major.toLowerCase() === filterMajor.toLowerCase());
+          filtered = filtered.filter(s => {
+              const sMajor = s.major.trim().toLowerCase();
+              const fMajor = filterMajor.trim().toLowerCase();
+              // Robust check for Mech vs Mechanical variations
+              if (fMajor === 'mech' && (sMajor === 'mechanical' || sMajor === 'mech')) return true;
+              return sMajor === fMajor;
+          });
       }
       
       if (filterStatus !== 'All') {
@@ -425,10 +431,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
         filtered = filtered.filter(s => s.name.toLowerCase().includes(lower));
     }
 
-    // Filter Department (Major)
+    // Filter Department (Major) - Case Insensitive and trimmed
     if (teacherFilterMajor !== 'All') {
-        // Use loose check for robustness, though strict check works if DB is clean
-        filtered = filtered.filter(s => s.major.trim() === teacherFilterMajor);
+        filtered = filtered.filter(s => {
+             const sMajor = s.major.trim().toLowerCase();
+             const fMajor = teacherFilterMajor.trim().toLowerCase();
+             // Robust check for Mech vs Mechanical variations
+             if (fMajor === 'mech' && (sMajor === 'mechanical' || sMajor === 'mech')) return true;
+             return sMajor === fMajor;
+        });
     }
 
     // Filter Status
