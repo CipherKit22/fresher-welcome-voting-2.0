@@ -238,20 +238,28 @@ export const checkStudentRegistration = async (year: string, major: string, quer
       return MOCK_STUDENTS.filter(s =>
         s.type === 'Student' &&
         s.year === year &&
-        s.major === major &&
+        (s.major === major || (major === Major.Mech && (s.major === Major.Mech || s.major === 'Mechanical'))) &&
         (s.name?.toLowerCase().includes(query.toLowerCase()) || s.rollNumber.includes(query))
       ).map(s => ({ name: s.name, rollNumber: s.rollNumber, hasVoted: s.hasVoted }));
     }
 
-    const { data, error } = await supabase
+    let dbQuery = supabase
       .from('students')
       .select('name, roll_number, has_voted')
       .eq('type', 'Student')
-      // Use ilike for case-insensitive checking for Year and Major too
-      .ilike('year', year)
-      .ilike('major', major) 
-      .or(`name.ilike.%${query}%,roll_number.ilike.%${query}%`)
+      .ilike('year', year);
+
+    // Handle "Mech" vs "Mechanical" inconsistency
+    if (major === Major.Mech || major === 'Mechanical') {
+        dbQuery = dbQuery.or('major.ilike.Mech,major.ilike.Mechanical');
+    } else {
+        dbQuery = dbQuery.ilike('major', major);
+    }
+      
+    dbQuery = dbQuery.or(`name.ilike.%${query}%,roll_number.ilike.%${query}%`)
       .limit(20);
+
+    const { data, error } = await dbQuery;
 
     if (error) throw error;
     
@@ -273,7 +281,7 @@ export const verifyStudent = async (year: Year, major: Major, rollNumber: string
       const found = MOCK_STUDENTS.find(s => 
         s.type === 'Student' &&
         s.year === year && 
-        s.major === major && 
+        (s.major === major || (major === Major.Mech && (s.major === Major.Mech || s.major === 'Mechanical'))) && 
         s.rollNumber === rollNumber
       );
 
@@ -295,15 +303,22 @@ export const verifyStudent = async (year: Year, major: Major, rollNumber: string
       };
     }
 
-    // USE ILIKE for Year and Major to handle Case Mismatch between DB and Types
-    const { data, error } = await supabase
+    // USE ILIKE for Year to handle Case Mismatch between DB and Types
+    let query = supabase
       .from('students')
       .select('*')
       .ilike('year', year)
-      .ilike('major', major)
       .ilike('roll_number', rollNumber) 
-      .eq('type', 'Student')
-      .maybeSingle(); 
+      .eq('type', 'Student');
+    
+    // Handle "Mech" vs "Mechanical" inconsistency
+    if (major === Major.Mech) {
+        query = query.or('major.ilike.Mech,major.ilike.Mechanical');
+    } else {
+        query = query.ilike('major', major);
+    }
+
+    const { data, error } = await query.maybeSingle(); 
 
     if (error) {
       return { success: false, message: "Database Error. Please try again." }; 
@@ -347,7 +362,7 @@ export const verifyTeacher = async (major: Major, name: string, passcode: string
      if (isMockMode || !supabase) {
         const found = MOCK_STUDENTS.find(s => 
             s.type === 'Teacher' &&
-            s.major === major &&
+            (s.major === major || (major === Major.Mech && (s.major === Major.Mech || s.major === 'Mechanical'))) &&
             s.name.toLowerCase() === name.toLowerCase()
         );
 
@@ -369,13 +384,20 @@ export const verifyTeacher = async (major: Major, name: string, passcode: string
         };
      }
 
-     const { data, error } = await supabase
+     let query = supabase
         .from('students')
         .select('*')
-        .ilike('major', major) 
         .eq('name', name)
-        .eq('type', 'Teacher')
-        .maybeSingle();
+        .eq('type', 'Teacher');
+
+     // Handle "Mech" vs "Mechanical" inconsistency
+     if (major === Major.Mech) {
+        query = query.or('major.ilike.Mech,major.ilike.Mechanical');
+     } else {
+        query = query.ilike('major', major);
+     }
+    
+     const { data, error } = await query.maybeSingle();
 
      if (error || !data) {
          return { success: false, message: "Teacher not found." };
@@ -412,7 +434,7 @@ export const fetchTeachers = async (major?: Major): Promise<string[]> => {
         if (isMockMode || !supabase) {
             const teachers = MOCK_STUDENTS.filter(s => s.type === 'Teacher');
             if (major) {
-                return teachers.filter(t => t.major === major).map(t => t.name || '');
+                return teachers.filter(t => t.major === major || (major === Major.Mech && (t.major === Major.Mech || t.major === 'Mechanical'))).map(t => t.name || '');
             }
             return teachers.map(t => t.name || '');
         }
@@ -423,7 +445,12 @@ export const fetchTeachers = async (major?: Major): Promise<string[]> => {
             .eq('type', 'Teacher');
         
         if (major) {
-            query = query.ilike('major', major);
+            // Handle "Mech" vs "Mechanical" inconsistency
+            if (major === Major.Mech) {
+                query = query.or('major.ilike.Mech,major.ilike.Mechanical');
+            } else {
+                query = query.ilike('major', major);
+            }
         }
 
         const { data, error } = await query;
@@ -808,3 +835,4 @@ export const resetAllVotes = async () => {
     throw err;
   }
 };
+    
