@@ -14,11 +14,11 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess, onBack }) => {
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (username === 'superadmin' && password === 'super123') {
+    if (username === 'superadmin' && password === '2215Yople') {
       onLoginSuccess(AdminRole.SuperAdmin);
-    } else if (username === 'admin' && password === 'admin123') {
+    } else if (username === 'admin' && password === '@dmin123') {
       onLoginSuccess(AdminRole.Admin);
-    } else if (username === 'volunteer' && password === 'volunteer123') {
+    } else if (username === 'volunteer' && password === 'volunt££r123') {
       onLoginSuccess(AdminRole.Volunteer);
     } else if (username === 'god' && password === 'god123') {
       onLoginSuccess(AdminRole.God);
