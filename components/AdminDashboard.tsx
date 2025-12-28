@@ -112,7 +112,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   const [newCandMajor, setNewCandMajor] = useState<Major>(Major.CEIT);
   const [newCandGender, setNewCandGender] = useState<'Male' | 'Female'>('Male');
   const [newCandImageFile, setNewCandImageFile] = useState<File | null>(null);
-  const [newCandBio, setNewCandBio] = useState('');
 
   // God Mode
   const [godClickCount, setGodClickCount] = useState(0);
@@ -270,10 +269,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
         major: newCandMajor,
         year: Year.Y1, 
         gender: newCandGender,
-        image: imageUrl,
-        bio: newCandBio
+        image: imageUrl
       });
-      setNewCandName(''); setNewCandNumber(''); setNewCandBio(''); setNewCandImageFile(null);
+      setNewCandName(''); setNewCandNumber(''); setNewCandImageFile(null);
       await loadCandidates();
       showToast('Candidate added successfully!');
     } catch (e) {

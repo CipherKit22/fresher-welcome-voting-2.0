@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Candidate, Votes } from '../types';
 import CandidateCard from './CandidateCard';
@@ -22,12 +23,6 @@ const Ballot: React.FC<BallotProps> = ({ onSubmit, isGuest, onLoginRequest }) =>
   const [isEventStarted, setIsEventStarted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
-  // Modal State for Bio
-  const [infoCandidate, setInfoCandidate] = useState<Candidate | null>(null);
-  
-  // Full Image View State
-  const [showFullImage, setShowFullImage] = useState<string | null>(null);
 
   // Load Data
   useEffect(() => {
@@ -112,101 +107,8 @@ const Ballot: React.FC<BallotProps> = ({ onSubmit, isGuest, onLoginRequest }) =>
   const selectedFemale = getSelectedCandidateDetails(votes.female);
 
   return (
-    <div className="w-full max-w-[1400px] mx-auto px-4 py-8 relative pb-44 md:pb-36">
+    <div className="w-full max-w-[1400px] mx-auto px-4 py-8 relative pb-48 md:pb-36">
       
-      {/* Lightbox / Full Image Viewer */}
-      {showFullImage && (
-        <div 
-          className="fixed inset-0 z-[60] bg-black/95 backdrop-blur-xl flex items-center justify-center p-4 animate-fadeIn" 
-          onClick={() => setShowFullImage(null)}
-        >
-           <button 
-             className="absolute top-4 right-4 text-white hover:text-red-500 transition-colors bg-white/10 rounded-full w-12 h-12 flex items-center justify-center"
-             onClick={() => setShowFullImage(null)}
-           >
-             <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-           </button>
-           <img 
-             src={showFullImage} 
-             alt="Full View" 
-             className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
-             onClick={e => e.stopPropagation()} // Prevent close on image click
-           />
-        </div>
-      )}
-
-      {/* Bio Modal */}
-      {infoCandidate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-fadeIn" onClick={() => setInfoCandidate(null)}>
-          <div className="bg-white w-full max-w-lg rounded-xl overflow-hidden shadow-2xl relative border border-slate-200" onClick={e => e.stopPropagation()}>
-             
-             {/* Close Button */}
-             <button 
-               onClick={() => setInfoCandidate(null)}
-               className="absolute top-4 right-4 z-10 w-8 h-8 rounded-full bg-slate-900/50 text-white flex items-center justify-center hover:bg-red-600 transition-colors backdrop-blur-md border border-white/20"
-             >
-               ✕
-             </button>
-
-             {/* Header Image */}
-             <div 
-                className="relative h-80 w-full cursor-zoom-in group"
-                onClick={() => setShowFullImage(infoCandidate.image)}
-             >
-                <img 
-                  src={infoCandidate.image} 
-                  alt={infoCandidate.name} 
-                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-transparent pointer-events-none"></div>
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors pointer-events-none"></div>
-                
-                {/* View Fullsize hint */}
-                <div className="absolute top-4 left-4 bg-black/40 text-white text-[10px] font-bold uppercase px-2 py-1 rounded backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                    Click to Enlarge
-                </div>
-
-                <div className="absolute bottom-0 left-0 p-6 pointer-events-none">
-                   <span className={`inline-block px-2 py-1 rounded text-[10px] font-bold uppercase tracking-widest text-white mb-2 ${infoCandidate.gender === 'Male' ? 'bg-cyan-600' : 'bg-pink-600'}`}>
-                      {infoCandidate.major}
-                   </span>
-                   <h2 className="text-3xl font-tech text-white uppercase tracking-wider drop-shadow-md">
-                      <span className="text-xl opacity-70 mr-2 align-top">#{infoCandidate.candidateNumber}</span>
-                      {infoCandidate.name}
-                   </h2>
-                </div>
-             </div>
-
-             {/* Bio Content */}
-             <div className="p-6 max-h-[40vh] overflow-y-auto custom-scrollbar">
-                <h4 className="text-cyan-600 font-bold text-xs uppercase tracking-widest mb-2 border-b border-slate-100 pb-2">Candidate Profile</h4>
-                {infoCandidate.bio ? (
-                  <p className="text-slate-600 leading-relaxed whitespace-pre-line text-sm md:text-base">
-                    {infoCandidate.bio}
-                  </p>
-                ) : (
-                  <p className="text-slate-400 italic text-sm">No biography available.</p>
-                )}
-             </div>
-
-             {/* Footer Action */}
-             {!isGuest && !isSelected(infoCandidate.id) && !isSubmitting && isEventStarted && (
-                <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end">
-                   <button 
-                     onClick={() => {
-                        handleCandidateClick(infoCandidate.id);
-                        setInfoCandidate(null);
-                     }}
-                     className={`px-6 py-2 rounded font-bold text-xs uppercase tracking-widest text-white transition-colors ${infoCandidate.gender === 'Male' ? 'bg-cyan-600 hover:bg-cyan-700' : 'bg-pink-600 hover:bg-pink-700'}`}
-                   >
-                      Vote for {infoCandidate.name.split(' ')[0]}
-                   </button>
-                </div>
-             )}
-          </div>
-        </div>
-      )}
-
       {isGuest && (
         <div className="mb-4 bg-amber-50 border border-amber-200 px-4 py-3 text-center sticky top-[80px] z-30 shadow-md">
             <p className="text-amber-700 text-xs font-bold uppercase tracking-widest flex justify-center items-center gap-2">
@@ -266,7 +168,6 @@ const Ballot: React.FC<BallotProps> = ({ onSubmit, isGuest, onLoginRequest }) =>
               isSelected={isSelected(candidate.id)}
               isDisabled={isSubmitting} 
               onSelect={handleCandidateClick}
-              onInfoClick={setInfoCandidate}
             />
           );
         })}
@@ -279,14 +180,14 @@ const Ballot: React.FC<BallotProps> = ({ onSubmit, isGuest, onLoginRequest }) =>
       <div className="fixed bottom-0 left-0 w-full glass-panel border-t border-white/50 p-4 z-40 bg-white/90 backdrop-blur-md shadow-[0_-5px_20px_rgba(0,0,0,0.1)]">
         <div className="max-w-[1400px] mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
             
-            <div className="flex w-full md:w-auto gap-4 justify-between md:justify-start">
+            <div className="flex w-full md:w-auto gap-2 md:gap-4 justify-between md:justify-start">
                {/* Male Selection */}
-               <div className={`flex items-center gap-3 p-2 pr-4 rounded-lg transition-colors flex-1 md:flex-none ${activeSection === 'Male' ? 'bg-cyan-50 border border-cyan-100' : ''}`}>
+               <div onClick={() => setActiveSection('Male')} className={`cursor-pointer flex items-center gap-3 p-2 pr-4 rounded-lg transition-colors flex-1 md:flex-none ${activeSection === 'Male' ? 'bg-cyan-50 border border-cyan-100' : ''}`}>
                   <div className={`w-10 h-10 rounded flex items-center justify-center font-bold text-lg border-2 shadow-sm transition-all ${votes.male ? 'bg-cyan-600 border-cyan-600 text-white' : 'bg-white border-slate-300 text-slate-300'}`}>
                     {votes.male ? 'M' : ''}
                   </div>
-                  <div className="flex flex-col">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Boy Selected</span>
+                  <div className="flex flex-col overflow-hidden">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider whitespace-nowrap">Boy Selected</span>
                     <span className={`text-xs font-bold truncate max-w-[120px] ${votes.male ? 'text-cyan-800' : 'text-slate-300'}`}>
                       {selectedMale ? `No. ${selectedMale.candidateNumber} ${selectedMale.name}` : 'None'}
                     </span>
@@ -294,12 +195,12 @@ const Ballot: React.FC<BallotProps> = ({ onSubmit, isGuest, onLoginRequest }) =>
                </div>
 
                {/* Female Selection */}
-               <div className={`flex items-center gap-3 p-2 pr-4 rounded-lg transition-colors flex-1 md:flex-none ${activeSection === 'Female' ? 'bg-pink-50 border border-pink-100' : ''}`}>
+               <div onClick={() => setActiveSection('Female')} className={`cursor-pointer flex items-center gap-3 p-2 pr-4 rounded-lg transition-colors flex-1 md:flex-none ${activeSection === 'Female' ? 'bg-pink-50 border border-pink-100' : ''}`}>
                   <div className={`w-10 h-10 rounded flex items-center justify-center font-bold text-lg border-2 shadow-sm transition-all ${votes.female ? 'bg-pink-600 border-pink-600 text-white' : 'bg-white border-slate-300 text-slate-300'}`}>
                     {votes.female ? 'F' : ''}
                   </div>
-                  <div className="flex flex-col">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Girl Selected</span>
+                  <div className="flex flex-col overflow-hidden">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider whitespace-nowrap">Girl Selected</span>
                     <span className={`text-xs font-bold truncate max-w-[120px] ${votes.female ? 'text-pink-800' : 'text-slate-300'}`}>
                       {selectedFemale ? `No. ${selectedFemale.candidateNumber} ${selectedFemale.name}` : 'None'}
                     </span>

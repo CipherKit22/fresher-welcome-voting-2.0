@@ -87,8 +87,7 @@ export const fetchCandidates = async (): Promise<Candidate[]> => {
             major: c.major,
             year: c.year,
             gender: c.gender,
-            image: c.image,
-            bio: c.bio || ''
+            image: c.image
         };
     }).sort((a: Candidate, b: Candidate) => a.candidateNumber - b.candidateNumber);
 
@@ -112,12 +111,10 @@ export const addCandidate = async (candidate: Omit<Candidate, 'id'>) => {
 
     const dbPayload = {
         name: combinedName,
-        // candidate_number: candidate.candidateNumber, // Removed to prevent schema errors
         major: candidate.major,
         year: candidate.year,
         gender: candidate.gender,
-        image: candidate.image,
-        bio: candidate.bio
+        image: candidate.image
     };
 
     const { data, error } = await supabase
@@ -147,11 +144,7 @@ export const updateCandidate = async (id: string, updates: Partial<Candidate>) =
         if (updates.name) dbUpdates.name = updates.name;
         if (updates.major) dbUpdates.major = updates.major;
         if (updates.gender) dbUpdates.gender = updates.gender;
-        if (updates.bio !== undefined) dbUpdates.bio = updates.bio;
         
-        // Note: We are not updating candidate_number here to avoid schema errors.
-        // To update number, delete and re-add, or update name manually in DB.
-
         const { error } = await supabase
             .from('candidates')
             .update(dbUpdates)
