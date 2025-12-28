@@ -48,6 +48,56 @@ export const updateEventStartTime = async (isoDate: string) => {
   }
 };
 
+// --- Winner Announcement Config ---
+
+export interface WinnerConfig {
+    isAnnounced: boolean;
+    kingId: string | null;
+    queenId: string | null;
+}
+
+let MOCK_WINNER_CONFIG: WinnerConfig = { isAnnounced: false, kingId: null, queenId: null };
+
+export const fetchWinnerConfig = async (): Promise<WinnerConfig> => {
+    try {
+        if (isMockMode || !supabase) return MOCK_WINNER_CONFIG;
+
+        const { data, error } = await supabase
+            .from('app_config')
+            .select('value')
+            .eq('key', 'winner_config')
+            .maybeSingle();
+        
+        if (error || !data) return { isAnnounced: false, kingId: null, queenId: null };
+        
+        return JSON.parse(data.value);
+    } catch (e) {
+        console.error("fetchWinnerConfig error", e);
+        return { isAnnounced: false, kingId: null, queenId: null };
+    }
+};
+
+export const updateWinnerConfig = async (config: WinnerConfig) => {
+    try {
+        if (isMockMode || !supabase) {
+            MOCK_WINNER_CONFIG = config;
+            return;
+        }
+
+        const { error } = await supabase
+            .from('app_config')
+            .upsert(
+                { key: 'winner_config', value: JSON.stringify(config) },
+                { onConflict: 'key' }
+            );
+
+        if (error) throw error;
+    } catch (e) {
+        console.error("updateWinnerConfig error", e);
+        throw e;
+    }
+};
+
 
 // --- Candidates ---
 

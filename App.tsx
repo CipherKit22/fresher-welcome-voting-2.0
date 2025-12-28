@@ -5,10 +5,11 @@ import Ballot from './components/Ballot';
 import VotingAssistant from './components/VotingAssistant';
 import AdminLogin from './components/AdminLogin';
 import AdminDashboard from './components/AdminDashboard';
+import WinnerReveal from './components/WinnerReveal';
 import { StudentInfo, Votes, AdminRole } from './types';
-import { submitVote } from './services/supabaseService';
+import { submitVote, fetchWinnerConfig, WinnerConfig } from './services/supabaseService';
 
-type AppView = 'student-login' | 'student-voting' | 'student-voted' | 'admin-login' | 'admin-dashboard';
+type AppView = 'student-login' | 'student-voting' | 'student-voted' | 'admin-login' | 'admin-dashboard' | 'winner-reveal';
 
 const App: React.FC = () => {
   const [view, setView] = useState<AppView>('student-login');
@@ -16,6 +17,9 @@ const App: React.FC = () => {
   const [adminRole, setAdminRole] = useState<AdminRole>(AdminRole.Admin);
   const [isPageLoading, setIsPageLoading] = useState(false);
   const [showReminder, setShowReminder] = useState(true);
+  
+  // Winner Config State
+  const [winnerConfig, setWinnerConfig] = useState<WinnerConfig>({ isAnnounced: false, kingId: null, queenId: null });
 
   // Initial Checks
   useEffect(() => {
@@ -25,8 +29,31 @@ const App: React.FC = () => {
       setAdminRole(savedRole as AdminRole);
       setView('admin-dashboard');
       setShowReminder(false); // No reminder for admin
+    } else {
+        checkWinnerStatus();
     }
+
+    // Polling for winner announcement
+    const interval = setInterval(checkWinnerStatus, 5000);
+    return () => clearInterval(interval);
   }, []);
+
+  const checkWinnerStatus = async () => {
+      // Don't override if user is already in admin flow
+      const savedRole = localStorage.getItem('adminRole');
+      if (savedRole) return;
+
+      const config = await fetchWinnerConfig();
+      setWinnerConfig(config);
+      
+      // If announced and user is not admin, force reveal page
+      if (config.isAnnounced) {
+          setView(prev => (prev === 'admin-login' || prev === 'admin-dashboard') ? prev : 'winner-reveal');
+      } else {
+          // If announcement turned off, revert to login if currently on reveal
+          setView(prev => prev === 'winner-reveal' ? 'student-login' : prev);
+      }
+  };
 
   const changeView = (newView: AppView) => {
     setIsPageLoading(true);
@@ -70,6 +97,8 @@ const App: React.FC = () => {
     localStorage.removeItem('adminRole');
     changeView('student-login');
     setShowReminder(true);
+    // Re-check winner status immediately to potentially show reveal page
+    checkWinnerStatus();
   };
 
   const handleAdminLoginSuccess = (role: AdminRole) => {
@@ -79,13 +108,13 @@ const App: React.FC = () => {
     setShowReminder(false);
   };
 
-  const showHeader = view !== 'student-login' && view !== 'admin-login';
+  const showHeader = view !== 'student-login' && view !== 'admin-login' && view !== 'winner-reveal';
 
   return (
     <div className="min-h-screen text-slate-800 overflow-hidden relative">
       
       {/* Reminder Modal */}
-      {showReminder && view !== 'admin-dashboard' && view !== 'admin-login' && (
+      {showReminder && view !== 'admin-dashboard' && view !== 'admin-login' && view !== 'winner-reveal' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/80 backdrop-blur-sm animate-fadeIn">
             <div className="bg-white max-w-lg w-full rounded-2xl p-8 shadow-2xl relative overflow-hidden border border-slate-200">
                 <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-cyan-500 to-blue-600"></div>
@@ -149,8 +178,12 @@ const App: React.FC = () => {
       )}
 
       <main className={`relative z-10 flex flex-col items-center justify-center p-4 ${showHeader ? 'min-h-[calc(100vh-64px)]' : 'min-h-screen'}`}>
+        {view === 'winner-reveal' && <WinnerReveal kingId={winnerConfig.kingId} queenId={winnerConfig.queenId} onAdminLogin={() => changeView('admin-login')} />}
         {view === 'student-login' && <Login onLogin={handleLogin} onAdminClick={() => changeView('admin-login')} onGuestClick={handleGuestLogin} />}
-        {view === 'admin-login' && <AdminLogin onLoginSuccess={handleAdminLoginSuccess} onBack={() => changeView('student-login')} />}
+        {view === 'admin-login' && <AdminLogin onLoginSuccess={handleAdminLoginSuccess} onBack={() => {
+            if (winnerConfig.isAnnounced) changeView('winner-reveal');
+            else changeView('student-login');
+        }} />}
         {view === 'admin-dashboard' && <AdminDashboard adminRole={adminRole} onLogout={handleAdminLogout} />}
         {view === 'student-voting' && <Ballot onSubmit={handleSubmitVotes} isGuest={currentStudent?.type === 'Guest'} onLoginRequest={handleLogout} />}
         {view === 'student-voted' && (

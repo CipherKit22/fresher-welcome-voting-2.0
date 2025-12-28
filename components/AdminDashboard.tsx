@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Candidate, Major, AdminRole, Year, Votes } from '../types';
-import { fetchVoteResults, fetchCandidates, addCandidate, deleteCandidate, fetchStudents, fetchEventStartTime, updateEventStartTime, fetchTotalStudentCount, updateStudentVoteStatus, bulkUpdateClassPasscode, submitVote } from '../services/supabaseService';
+import { fetchVoteResults, fetchCandidates, addCandidate, deleteCandidate, fetchStudents, fetchEventStartTime, updateEventStartTime, fetchTotalStudentCount, fetchTotalTeacherCount, updateStudentVoteStatus, bulkUpdateClassPasscode, submitVote, fetchWinnerConfig, updateWinnerConfig, WinnerConfig } from '../services/supabaseService';
 import { getClassPasscode, STUDENT_MAJORS } from '../constants';
 
 interface AdminDashboardProps {
@@ -68,7 +68,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   const isVolunteer = adminRole === AdminRole.Volunteer;
   const isGod = adminRole === AdminRole.God;
 
-  const [activeTab, setActiveTab] = useState<'results' | 'candidates' | 'students' | 'teachers' | 'passcodes' | 'settings'>(
+  const [activeTab, setActiveTab] = useState<'results' | 'candidates' | 'students' | 'teachers' | 'passcodes' | 'settings' | 'announcement'> (
     isVolunteer ? 'students' : (isGod ? 'settings' : 'results')
   );
 
@@ -78,12 +78,21 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   const [totalVotes, setTotalVotes] = useState(0);
   const [totalStudentCount, setTotalStudentCount] = useState(0);
   
+  // UI Interaction States
+  const [expandedResultId, setExpandedResultId] = useState<string | null>(null);
+
   // Timer
   const [dbEventTime, setDbEventTime] = useState(''); 
   const [editingEventTime, setEditingEventTime] = useState(''); 
   const [timeRemaining, setTimeRemaining] = useState<string>('');
   const [isLocked, setIsLocked] = useState(false);
   
+  // Winner Config
+  const [winnerConfig, setWinnerConfig] = useState<WinnerConfig>({ isAnnounced: false, kingId: null, queenId: null });
+  const [selectedKingId, setSelectedKingId] = useState<string>('');
+  const [selectedQueenId, setSelectedQueenId] = useState<string>('');
+  const [isPublishingWinner, setIsPublishingWinner] = useState(false);
+
   const dbEventTimeRef = useRef(dbEventTime);
   useEffect(() => { dbEventTimeRef.current = dbEventTime; }, [dbEventTime]);
 
@@ -147,17 +156,26 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
       loadCandidates(),
       canViewSensitive ? loadStudents() : Promise.resolve(),
       loadEventTime(),
+      isSuperAdmin ? loadWinnerConfig() : Promise.resolve()
     ]);
     setIsLoading(false);
   };
+
+  const loadWinnerConfig = async () => {
+      const config = await fetchWinnerConfig();
+      setWinnerConfig(config);
+      if (config.kingId) setSelectedKingId(config.kingId);
+      if (config.queenId) setSelectedQueenId(config.queenId);
+  }
 
   const loadResultsOnly = async () => {
     if (!canViewResults) return;
     const { tally, totalVotes } = await fetchVoteResults();
     const totalStudents = await fetchTotalStudentCount();
+    const totalTeachers = await fetchTotalTeacherCount();
     setVotes(tally);
     setTotalVotes(totalVotes);
-    setTotalStudentCount(totalStudents);
+    setTotalStudentCount(totalStudents + totalTeachers);
   };
 
   const loadCandidates = async () => {
@@ -253,6 +271,32 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
           setIsUpdatingTime(false);
       }
   }
+
+  const handleToggleAnnouncement = async (announce: boolean) => {
+      if (announce) {
+          if (!selectedKingId || !selectedQueenId) {
+              showToast("Please select both King and Queen first.", "error");
+              return;
+          }
+          if (!confirm("Are you sure? This will replace the login screen for everyone with the Winner Reveal page.")) return;
+      }
+
+      setIsPublishingWinner(true);
+      try {
+          const newConfig = { 
+              isAnnounced: announce, 
+              kingId: selectedKingId, 
+              queenId: selectedQueenId 
+          };
+          await updateWinnerConfig(newConfig);
+          setWinnerConfig(newConfig);
+          showToast(announce ? "Winners Announced!" : "Announcement Hidden.");
+      } catch (e) {
+          showToast("Failed to update announcement.", "error");
+      } finally {
+          setIsPublishingWinner(false);
+      }
+  };
 
   const handleAddCandidate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -383,7 +427,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
 
     // Filter Department (Major)
     if (teacherFilterMajor !== 'All') {
-        filtered = filtered.filter(s => s.major === teacherFilterMajor);
+        // Use loose check for robustness, though strict check works if DB is clean
+        filtered = filtered.filter(s => s.major.trim() === teacherFilterMajor);
     }
 
     // Filter Status
@@ -392,7 +437,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
         filtered = filtered.filter(s => !!s.has_voted === isVoted);
     }
     
-    return filtered.sort((a, b) => a.name.localeCompare(b.name));
+    // Sort by Major (Department) first, then Name
+    return filtered.sort((a, b) => {
+        if (a.major !== b.major) return a.major.localeCompare(b.major);
+        return a.name.localeCompare(b.name);
+    });
   };
 
   const handleExportCSV = () => {
@@ -493,12 +542,18 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   const renderGenderResults = (gender: 'Male' | 'Female') => {
       const genderCandidates = candidates.filter(c => c.gender === gender);
       const themeColor = gender === 'Male' ? 'cyan' : 'pink';
+      const winningTitle = gender === 'Male' ? 'King' : 'Queen';
+
+      // Sort
       const sortedCandidates = [...genderCandidates].sort((a, b) => {
           const votesA = votes[gender]?.[a.id] || 0;
           const votesB = votes[gender]?.[b.id] || 0;
           if (resultSort === 'votes') return votesB - votesA;
           return a.name.localeCompare(b.name);
       });
+
+      // Identify winner (highest vote > 0)
+      const maxVotes = Math.max(...genderCandidates.map(c => votes[gender]?.[c.id] || 0));
 
       return (
         <div className="glass-panel p-6 rounded-xl border border-slate-200 bg-white h-full">
@@ -507,15 +562,38 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
             {sortedCandidates.map((candidate, index) => {
                 const voteCount = votes[gender]?.[candidate.id] || 0;
                 const barWidth = totalStudentCount > 0 ? (voteCount / totalStudentCount) * 100 : 0;
+                
+                const isWinner = voteCount > 0 && voteCount === maxVotes;
+                const isExpanded = expandedResultId === candidate.id;
+                const percentage = totalStudentCount > 0 ? ((voteCount / totalStudentCount) * 100).toFixed(2) : '0.00';
+
                 return (
-                    <div key={candidate.id} className="relative">
+                    <div 
+                        key={candidate.id} 
+                        className={`relative cursor-pointer transition-all ${isExpanded ? 'bg-slate-50 p-2 -m-2 rounded-lg border border-slate-100 shadow-sm z-10' : ''}`}
+                        onClick={() => setExpandedResultId(isExpanded ? null : candidate.id)}
+                    >
                         <div className="flex justify-between items-end mb-1">
-                            <span className="text-sm font-bold text-slate-700 uppercase">#{candidate.candidateNumber} {candidate.name}</span>
+                            <span className="text-sm font-bold text-slate-700 uppercase flex items-center gap-2">
+                                #{candidate.candidateNumber} {candidate.name}
+                                {isWinner && <span className="text-yellow-500 text-lg animate-pulse" title={winningTitle}>👑</span>}
+                                {isWinner && <span className="text-[10px] text-yellow-600 font-black tracking-widest bg-yellow-100 px-1 rounded border border-yellow-200">{winningTitle.toUpperCase()}</span>}
+                            </span>
                             <span className="text-xs font-bold text-slate-400">{voteCount}</span>
                         </div>
                         <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
-                            <div className={`h-full rounded-full transition-all duration-1000 ${index === 0 && voteCount > 0 ? 'bg-yellow-400' : `bg-${themeColor}-500`}`} style={{ width: `${Math.max(barWidth, 1)}%` }}></div>
+                            <div className={`h-full rounded-full transition-all duration-1000 ${isWinner ? 'bg-yellow-400' : `bg-${themeColor}-500`}`} style={{ width: `${Math.max(barWidth, 1)}%` }}></div>
                         </div>
+                        
+                        {/* Expanded Stats */}
+                        {isExpanded && (
+                             <div className="mt-2 text-[10px] font-bold text-slate-500 uppercase tracking-wide flex justify-between animate-fadeIn border-t border-slate-200 pt-2">
+                                 <span>Detailed Stats:</span>
+                                 <span className="font-mono">
+                                     {voteCount} / {totalStudentCount} ({percentage}%)
+                                 </span>
+                             </div>
+                        )}
                     </div>
                 );
             })}
@@ -569,6 +647,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                <div className="flex items-center gap-2">
                    <div className="bg-slate-800 text-white px-2 py-1 rounded text-xs font-bold uppercase tracking-widest border border-slate-700">{adminRole} Panel</div>
                    {isLocked ? <div className="text-red-500 text-xs font-bold uppercase tracking-widest animate-pulse">• System Locked</div> : <div className="text-green-500 text-xs font-bold uppercase tracking-widest">• Voting Active</div>}
+                   {winnerConfig.isAnnounced && <div className="ml-2 bg-yellow-400 text-yellow-900 px-2 py-1 rounded text-xs font-bold uppercase tracking-widest border border-yellow-500 animate-pulse">Winners Live</div>}
                </div>
                <div className="flex items-center gap-4">
                   {timeRemaining && <div className="hidden md:block bg-red-50 text-red-600 px-3 py-1 rounded border border-red-100 font-mono font-bold text-sm">T-Minus {timeRemaining}</div>}
@@ -578,9 +657,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
            {/* Tabs */}
            <div className="max-w-[1600px] mx-auto px-4 overflow-x-auto custom-scrollbar">
                <div className="flex gap-6">
-                   {['results', 'candidates', 'students', 'teachers', 'passcodes', 'settings'].map(tab => {
+                   {['results', 'candidates', 'students', 'teachers', 'passcodes', 'settings', 'announcement'].map(tab => {
                        if (tab === 'results' && !canViewResults) return null;
                        if (tab === 'settings' && !isSuperAdmin) return null;
+                       if (tab === 'announcement' && !isSuperAdmin) return null;
                        if ((tab === 'students' || tab === 'teachers' || tab === 'passcodes') && !canViewSensitive) return null;
                        if (tab === 'candidates' && !isSuperAdmin) return null; 
                        return (
@@ -819,6 +899,69 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                             </div>
                         </div>
                     </div>
+                </div>
+            )}
+
+            {/* ANNOUNCEMENT (SuperAdmin Only) */}
+            {activeTab === 'announcement' && isSuperAdmin && (
+                <div className="max-w-4xl mx-auto animate-fadeIn">
+                     <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm mb-6">
+                        <h3 className="text-lg font-tech text-slate-800 mb-6 uppercase tracking-widest border-b pb-2">Winner Selection</h3>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                            {/* King Selector */}
+                            <div className="space-y-4">
+                                <h4 className="text-cyan-600 font-bold uppercase tracking-widest">Select King</h4>
+                                <select value={selectedKingId} onChange={(e) => setSelectedKingId(e.target.value)} className={selectClass}>
+                                    <option value="">-- Choose King --</option>
+                                    {candidates.filter(c => c.gender === 'Male').map(c => (
+                                        <option key={c.id} value={c.id}>#{c.candidateNumber} {c.name} ({c.major})</option>
+                                    ))}
+                                </select>
+                                {selectedKingId && (
+                                    <div className="aspect-[3/4] bg-slate-100 rounded-lg overflow-hidden border border-slate-200">
+                                        <img src={candidates.find(c => c.id === selectedKingId)?.image} className="w-full h-full object-cover" />
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Queen Selector */}
+                            <div className="space-y-4">
+                                <h4 className="text-pink-600 font-bold uppercase tracking-widest">Select Queen</h4>
+                                <select value={selectedQueenId} onChange={(e) => setSelectedQueenId(e.target.value)} className={selectClass}>
+                                    <option value="">-- Choose Queen --</option>
+                                    {candidates.filter(c => c.gender === 'Female').map(c => (
+                                        <option key={c.id} value={c.id}>#{c.candidateNumber} {c.name} ({c.major})</option>
+                                    ))}
+                                </select>
+                                {selectedQueenId && (
+                                    <div className="aspect-[3/4] bg-slate-100 rounded-lg overflow-hidden border border-slate-200">
+                                        <img src={candidates.find(c => c.id === selectedQueenId)?.image} className="w-full h-full object-cover" />
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="flex gap-4 border-t pt-6">
+                            {!winnerConfig.isAnnounced ? (
+                                <button 
+                                    onClick={() => handleToggleAnnouncement(true)} 
+                                    disabled={isPublishingWinner}
+                                    className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-tech text-xl uppercase py-4 rounded-xl shadow-lg transition-all"
+                                >
+                                    {isPublishingWinner ? 'Publishing...' : 'Announce Winners & Lock App'}
+                                </button>
+                            ) : (
+                                <button 
+                                    onClick={() => handleToggleAnnouncement(false)} 
+                                    disabled={isPublishingWinner}
+                                    className="w-full bg-slate-700 hover:bg-slate-600 text-white font-tech text-xl uppercase py-4 rounded-xl shadow-lg transition-all"
+                                >
+                                    {isPublishingWinner ? 'Updating...' : 'Hide Announcement & Unlock App'}
+                                </button>
+                            )}
+                        </div>
+                     </div>
                 </div>
             )}
        </div>
