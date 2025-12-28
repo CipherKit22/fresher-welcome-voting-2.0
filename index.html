@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -5,6 +6,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>TU Hmawbi Fresher Welcome</title>
     <link rel="icon" href="https://hbtu.edu.mm/img/Hmawbi-logo.png" type="image/png">
+    
+    <!-- Font Optimization -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -24,7 +31,7 @@
         }
       }
     </script>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
     <script>
       window.process = window.process || { env: {} };
       window.process.env = window.process.env || {};
@@ -33,6 +40,24 @@
       if (typeof window.process.env.SUPABASE_URL === 'undefined') window.process.env.SUPABASE_URL = '';
       if (typeof window.process.env.SUPABASE_KEY === 'undefined') window.process.env.SUPABASE_KEY = '';
     </script>
+
+    <!-- Security Script: Disable Inspect & Right Click -->
+    <script>
+      document.addEventListener('contextmenu', (e) => e.preventDefault());
+      
+      document.addEventListener('keydown', (e) => {
+        // Disable F12, Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+U
+        if (
+          e.key === 'F12' ||
+          (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'i')) ||
+          (e.ctrlKey && e.shiftKey && (e.key === 'J' || e.key === 'j')) ||
+          (e.ctrlKey && (e.key === 'U' || e.key === 'u'))
+        ) {
+          e.preventDefault();
+        }
+      });
+    </script>
+
     <style>
       body {
         font-family: 'Rajdhani', sans-serif;
@@ -41,10 +66,21 @@
         color: #1e293b;
         min-height: 100vh;
         overflow-x: hidden;
+        
+        /* Prevent Text Selection */
+        -webkit-user-select: none; /* Safari */
+        -moz-user-select: none; /* Firefox */
+        -ms-user-select: none; /* IE10+/Edge */
+        user-select: none; /* Standard */
       }
+      
       h1, h2, h3, h4, h5, h6, .font-tech {
         font-family: 'Orbitron', sans-serif;
       }
+
+      /* Fallback/Explicit definitions to ensure fonts load correctly */
+      .font-sans { font-family: 'Rajdhani', sans-serif !important; }
+      
       /* Custom scrollbar */
       ::-webkit-scrollbar {
         width: 8px;
