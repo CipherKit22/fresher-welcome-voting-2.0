@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import Login from './components/Login';
 import Ballot from './components/Ballot';
@@ -15,23 +14,25 @@ const App: React.FC = () => {
   const [currentStudent, setCurrentStudent] = useState<StudentInfo | null>(null);
   const [adminRole, setAdminRole] = useState<AdminRole>(AdminRole.Admin);
   const [isPageLoading, setIsPageLoading] = useState(false);
+  const [showReminder, setShowReminder] = useState(true);
 
-  // Check for saved admin session on mount
+  // Initial Checks
   useEffect(() => {
+    // Check for saved admin session
     const savedRole = localStorage.getItem('adminRole');
     if (savedRole) {
       setAdminRole(savedRole as AdminRole);
       setView('admin-dashboard');
+      setShowReminder(false); // No reminder for admin
     }
   }, []);
 
-  // Helper to trigger page loader on view change
   const changeView = (newView: AppView) => {
     setIsPageLoading(true);
     setTimeout(() => {
       setView(newView);
       setIsPageLoading(false);
-    }, 300); // Reduced from 600ms for snappier feel
+    }, 500);
   };
 
   const handleLogin = (student: StudentInfo) => {
@@ -44,21 +45,13 @@ const App: React.FC = () => {
   };
 
   const handleGuestLogin = () => {
-    const guestUser: StudentInfo = {
-      name: "Guest",
-      type: 'Guest',
-      year: "Guest",
-      major: "Guest",
-      rollNumber: "0",
-      hasVoted: false
-    };
+    const guestUser: StudentInfo = { name: "Guest", type: 'Guest', year: "Guest", major: "Guest", rollNumber: "0", hasVoted: false };
     setCurrentStudent(guestUser);
     changeView('student-voting');
   };
 
   const handleSubmitVotes = async (votes: Votes) => {
     if (!currentStudent || !currentStudent.id) return;
-    
     try {
       await submitVote(currentStudent.id, votes);
       changeView('student-voted');
@@ -75,134 +68,101 @@ const App: React.FC = () => {
   const handleAdminLogout = () => {
     localStorage.removeItem('adminRole');
     changeView('student-login');
+    setShowReminder(true);
   };
 
   const handleAdminLoginSuccess = (role: AdminRole) => {
     setAdminRole(role);
     localStorage.setItem('adminRole', role);
     changeView('admin-dashboard');
+    setShowReminder(false);
   };
 
   const showHeader = view !== 'student-login' && view !== 'admin-login';
 
   return (
-    <div className="min-h-screen text-slate-800 overflow-hidden relative selection:bg-cyan-200 selection:text-cyan-900 font-medium">
+    <div className="min-h-screen text-slate-800 overflow-hidden relative">
       
+      {/* Reminder Modal */}
+      {showReminder && view !== 'admin-dashboard' && view !== 'admin-login' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/80 backdrop-blur-sm animate-fadeIn">
+            <div className="bg-white max-w-lg w-full rounded-2xl p-8 shadow-2xl relative overflow-hidden border border-slate-200">
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-cyan-500 to-blue-600"></div>
+                <div className="text-center mb-6">
+                    <div className="w-16 h-16 bg-cyan-100 rounded-full flex items-center justify-center mx-auto mb-4 text-cyan-600">
+                        <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    </div>
+                    <h2 className="text-xl font-tech font-bold uppercase tracking-widest text-slate-800">Voting Rules</h2>
+                </div>
+                <p className="text-slate-600 text-center leading-relaxed font-medium mb-8">
+                    "King Queen ရွေးချယ်ရာတွင် Voting 50% နှင့် ပါမောက္ခချုပ်၊ ဒုတိယပါမောက္ခချုပ်ဆရာမကြီးများပါဝင်သော ဒိုင်အဖွဲ့၏ အမှတ်ပေးရွေးချယ်မှု 50% တို့အား ညီမျှစွာ တွက်ချက်ရွေးချယ်သွားမည်ဖြစ်သည်။"
+                </p>
+                <button 
+                  onClick={() => setShowReminder(false)}
+                  className="w-full bg-slate-800 text-white font-bold py-3 rounded-xl uppercase tracking-widest text-sm hover:bg-slate-700 transition-colors shadow-lg"
+                >
+                   Got it
+                </button>
+            </div>
+        </div>
+      )}
+
       {/* Global Page Loader */}
       {isPageLoading && (
         <div className="cyber-loader-container">
           <div className="cyber-spinner"></div>
-          <p className="mt-4 font-tech text-cyan-600 font-bold tracking-widest animate-pulse">PROCESSING...</p>
+          <p className="mt-4 font-tech text-slate-600 uppercase tracking-widest animate-pulse">Initializing System...</p>
         </div>
       )}
 
-      {/* Modern Background Animation */}
+      {/* Background */}
       <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-cyan-200/40 rounded-full blur-[100px] animate-blob mix-blend-multiply"></div>
-        <div className="absolute top-[20%] right-[-10%] w-[40%] h-[40%] bg-purple-200/40 rounded-full blur-[100px] animate-blob animation-delay-2000 mix-blend-multiply"></div>
-        <div className="absolute bottom-[-10%] left-[20%] w-[50%] h-[50%] bg-blue-200/40 rounded-full blur-[100px] animate-blob animation-delay-4000 mix-blend-multiply"></div>
+        <div className="absolute top-0 left-1/4 w-72 h-72 bg-purple-300 rounded-full mix-blend-multiply filter blur-xl opacity-30 animate-blob"></div>
+        <div className="absolute top-0 right-1/4 w-72 h-72 bg-cyan-300 rounded-full mix-blend-multiply filter blur-xl opacity-30 animate-blob animation-delay-2000"></div>
       </div>
 
       {showHeader && (
-        <header className="relative z-10 border-b border-slate-200 bg-white/70 backdrop-blur-md sticky top-0 shadow-sm transition-all duration-300">
-          <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-            <div 
-              className="flex items-center gap-4 cursor-pointer group" 
-              onClick={() => changeView('student-login')}
-            >
-              <img 
-                  src="https://hbtu.edu.mm/img/Hmawbi-logo.png" 
-                  alt="TU Hmawbi Logo" 
-                  className="h-12 w-auto object-contain transition-transform group-hover:scale-105"
-              />
+        <header className="relative z-10 border-b border-slate-200 bg-white/80 backdrop-blur-md sticky top-0">
+          <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+            <div className="flex items-center gap-3 cursor-pointer" onClick={() => changeView('student-login')}>
+              <img src="https://hbtu.edu.mm/img/Hmawbi-logo.png" alt="Logo" className="h-10 w-auto object-contain"/>
               <div className="flex flex-col">
-                <span className="font-tech text-lg font-bold tracking-wide text-cyan-900 group-hover:text-cyan-600 transition-colors uppercase">
-                  TU HMAWBI
-                </span>
-                <span className="text-[10px] tracking-widest text-slate-500 font-bold uppercase">
-                  Freshers Welcome
-                </span>
+                <span className="font-tech text-lg font-bold tracking-widest text-slate-800 uppercase">TU HMAWBI</span>
+                <span className="text-[10px] tracking-[0.2em] text-slate-500 font-bold uppercase">Freshers Welcome</span>
               </div>
             </div>
             
             {currentStudent && view === 'student-voting' && (
               <div className="flex items-center gap-4">
                 <div className="text-right hidden sm:block">
-                  <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{currentStudent.type || 'Student'}</div>
-                  <div className="text-sm font-bold text-slate-800 uppercase tracking-wider">
-                    {currentStudent.name}
-                  </div>
+                  <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{currentStudent.type}</div>
+                  <div className="text-sm font-bold text-slate-700 uppercase tracking-wider">{currentStudent.name}</div>
                 </div>
-                <button 
-                  onClick={handleLogout}
-                  className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 px-4 py-2 rounded-lg transition-all uppercase tracking-wider font-bold border border-slate-200"
-                >
-                  Log Out
-                </button>
+                <button onClick={handleLogout} className="text-xs bg-slate-100 hover:bg-red-50 text-slate-600 hover:text-red-600 px-4 py-2 rounded border border-slate-200 transition-colors uppercase tracking-widest font-bold">Log Out</button>
               </div>
             )}
           </div>
         </header>
       )}
 
-      <main className={`relative z-10 flex flex-col items-center justify-center p-6 ${showHeader ? 'min-h-[calc(100vh-80px)]' : 'min-h-screen'}`}>
-        
-        {view === 'student-login' && (
-          <Login 
-            onLogin={handleLogin} 
-            onAdminClick={() => changeView('admin-login')}
-            onGuestClick={handleGuestLogin}
-          />
-        )}
-
-        {view === 'admin-login' && (
-          <AdminLogin 
-            onLoginSuccess={handleAdminLoginSuccess} 
-            onBack={() => changeView('student-login')}
-          />
-        )}
-
-        {view === 'admin-dashboard' && (
-          <AdminDashboard 
-            adminRole={adminRole}
-            onLogout={handleAdminLogout}
-          />
-        )}
-
-        {view === 'student-voting' && (
-          <Ballot 
-            onSubmit={handleSubmitVotes} 
-            isGuest={currentStudent?.type === 'Guest'}
-            onLoginRequest={handleLogout}
-          />
-        )}
-
+      <main className={`relative z-10 flex flex-col items-center justify-center p-4 ${showHeader ? 'min-h-[calc(100vh-64px)]' : 'min-h-screen'}`}>
+        {view === 'student-login' && <Login onLogin={handleLogin} onAdminClick={() => changeView('admin-login')} onGuestClick={handleGuestLogin} />}
+        {view === 'admin-login' && <AdminLogin onLoginSuccess={handleAdminLoginSuccess} onBack={() => changeView('student-login')} />}
+        {view === 'admin-dashboard' && <AdminDashboard adminRole={adminRole} onLogout={handleAdminLogout} />}
+        {view === 'student-voting' && <Ballot onSubmit={handleSubmitVotes} isGuest={currentStudent?.type === 'Guest'} onLoginRequest={handleLogout} />}
         {view === 'student-voted' && (
-          <div className="text-center animate-fadeIn max-w-lg w-full glass-panel p-10 rounded-2xl shadow-xl relative overflow-hidden">
-            <div className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg shadow-green-200 animate-bounce">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-              </svg>
+          <div className="text-center animate-fadeIn max-w-lg w-full glass-panel p-10 rounded-xl shadow-2xl relative overflow-hidden border-t-4 border-green-500">
+            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
             </div>
-            
-            <h2 className="text-3xl font-tech text-slate-800 mb-2 uppercase tracking-wide">Done!</h2>
-            
-            <p className="text-slate-500 text-lg mb-8 leading-relaxed font-normal">
-              Your votes have been submitted. Thank you!
-            </p>
-            
-            <button 
-              onClick={handleLogout}
-              className="text-cyan-600 hover:text-cyan-800 font-tech text-sm tracking-widest uppercase hover:underline underline-offset-4 decoration-cyan-500 transition-all font-bold"
-            >
-              Back to Home
-            </button>
+            <h2 className="text-3xl font-tech text-slate-800 mb-2 uppercase tracking-widest">Votes Cast</h2>
+            <p className="text-slate-500 text-sm mb-8 leading-relaxed font-medium uppercase tracking-wide">Your selections have been recorded securely.<br/>Thank you for participating.</p>
+            <button onClick={handleLogout} className="bg-slate-800 text-white font-tech text-xs tracking-widest uppercase py-3 px-8 rounded hover:bg-slate-700 transition-colors shadow-lg">Return to Login</button>
           </div>
         )}
       </main>
 
       {(view === 'student-login' || view === 'student-voting') && <VotingAssistant />}
-      
     </div>
   );
 };

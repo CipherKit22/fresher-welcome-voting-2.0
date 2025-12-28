@@ -1,6 +1,6 @@
 
 import { supabase, isMockMode } from './supabaseClient';
-import { Candidate, StudentInfo, Votes, Major, Year, VotingRole } from '../types';
+import { Candidate, StudentInfo, Votes, Major, Year } from '../types';
 import { MOCK_CANDIDATES, MOCK_STUDENTS, getClassPasscode, DEFAULT_EVENT_TIME } from '../constants';
 
 // --- Configuration ---
@@ -48,6 +48,7 @@ export const updateEventStartTime = async (isoDate: string) => {
   }
 };
 
+
 // --- Candidates ---
 
 export const fetchCandidates = async (): Promise<Candidate[]> => {
@@ -66,12 +67,11 @@ export const fetchCandidates = async (): Promise<Candidate[]> => {
     }
     
     // Map snake_case from DB to camelCase for frontend
-    // Robustly handle missing candidate_number column by checking name format
     return data.map((c: any) => {
         let number = c.candidate_number;
         let name = c.name;
 
-        // Fallback: If column doesn't exist, try to parse from name "1. Name"
+        // Fallback: If column doesn't exist or is null, try to parse from name "1. Name"
         if (!number && typeof name === 'string') {
             const match = name.match(/^(\d+)\.\s+(.*)/);
             if (match) {
@@ -101,20 +101,18 @@ export const fetchCandidates = async (): Promise<Candidate[]> => {
 export const addCandidate = async (candidate: Omit<Candidate, 'id'>) => {
   try {
     if (isMockMode || !supabase) {
-      console.log("Mock Mode: Candidate added", candidate);
       const newCand = { ...candidate, id: `mock-${Date.now()}` };
       MOCK_CANDIDATES.push(newCand);
       return [newCand];
     }
 
-    // Workaround for missing 'candidate_number' column:
-    // Store number in name field: "1. John Doe"
-    // valid payload even if schema is old
-    const nameWithNumber = `${candidate.candidateNumber}. ${candidate.name}`;
+    // WORKAROUND: Combine number into name to allow storing candidate number 
+    // without requiring a specific 'candidate_number' column in the database.
+    const combinedName = `${candidate.candidateNumber}. ${candidate.name}`;
 
     const dbPayload = {
-        name: nameWithNumber,
-        // candidate_number: candidate.candidateNumber, // REMOVED to prevent schema error
+        name: combinedName,
+        // candidate_number: candidate.candidateNumber, // Removed to prevent schema errors
         major: candidate.major,
         year: candidate.year,
         gender: candidate.gender,
@@ -127,10 +125,7 @@ export const addCandidate = async (candidate: Omit<Candidate, 'id'>) => {
       .insert([dbPayload])
       .select();
     
-    if (error) {
-        console.error("Supabase Insert Error:", error);
-        throw new Error(error.message);
-    }
+    if (error) throw error;
     return data;
   } catch (err: any) {
     console.error("addCandidate error:", err.message || err);
@@ -141,7 +136,6 @@ export const addCandidate = async (candidate: Omit<Candidate, 'id'>) => {
 export const updateCandidate = async (id: string, updates: Partial<Candidate>) => {
     try {
         if (isMockMode || !supabase) {
-            console.log("Mock Mode: Candidate updated", id, updates);
             const idx = MOCK_CANDIDATES.findIndex(c => c.id === id);
             if (idx > -1) {
                 MOCK_CANDIDATES[idx] = { ...MOCK_CANDIDATES[idx], ...updates };
@@ -154,13 +148,9 @@ export const updateCandidate = async (id: string, updates: Partial<Candidate>) =
         if (updates.major) dbUpdates.major = updates.major;
         if (updates.gender) dbUpdates.gender = updates.gender;
         if (updates.bio !== undefined) dbUpdates.bio = updates.bio;
-        // Handle number update carefully if using name workaround
-        if (updates.candidateNumber && updates.name) {
-            dbUpdates.name = `${updates.candidateNumber}. ${updates.name}`;
-        } else if (updates.name && !updates.candidateNumber) {
-             // If just updating name, we might lose number if we blindly overwrite 'name' field
-             // Ideally we fetch first, but for now we assume full update or handled by caller
-        }
+        
+        // Note: We are not updating candidate_number here to avoid schema errors.
+        // To update number, delete and re-add, or update name manually in DB.
 
         const { error } = await supabase
             .from('candidates')
@@ -177,7 +167,6 @@ export const updateCandidate = async (id: string, updates: Partial<Candidate>) =
 export const deleteCandidate = async (id: string) => {
   try {
     if (isMockMode || !supabase) {
-      console.log("Mock Mode: Candidate deleted", id);
       const idx = MOCK_CANDIDATES.findIndex(c => c.id === id);
       if (idx > -1) MOCK_CANDIDATES.splice(idx, 1);
       return;
@@ -215,8 +204,9 @@ export const checkStudentRegistration = async (year: string, major: string, quer
       .from('students')
       .select('name, roll_number, has_voted')
       .eq('type', 'Student')
-      .eq('year', year)
-      .ilike('major', major) // Changed from .eq to .ilike for case-insensitive matching
+      // Use ilike for case-insensitive checking for Year and Major too
+      .ilike('year', year)
+      .ilike('major', major) 
       .or(`name.ilike.%${query}%,roll_number.ilike.%${query}%`)
       .limit(20);
 
@@ -237,7 +227,6 @@ export const checkStudentRegistration = async (year: string, major: string, quer
 export const verifyStudent = async (year: Year, major: Major, rollNumber: string, passcode: string): Promise<{ success: boolean; student?: StudentInfo; message?: string }> => {
   try {
     if (isMockMode || !supabase) {
-      // Mock Check against MOCK_STUDENTS
       const found = MOCK_STUDENTS.find(s => 
         s.type === 'Student' &&
         s.year === year && 
@@ -249,7 +238,6 @@ export const verifyStudent = async (year: Year, major: Major, rollNumber: string
         return { success: false, message: "Student not found. Please contact Admin." };
       }
 
-      // Check Passcode (Simple equality check for mock mode)
       if (found.passcode?.toLowerCase() !== passcode.toLowerCase()) {
          return { success: false, message: "Wrong Passcode." };
       }
@@ -264,13 +252,13 @@ export const verifyStudent = async (year: Year, major: Major, rollNumber: string
       };
     }
 
-    // Real DB Check
+    // USE ILIKE for Year and Major to handle Case Mismatch between DB and Types
     const { data, error } = await supabase
       .from('students')
       .select('*')
-      .eq('year', year)
-      .ilike('major', major) // Use ilike for case-insensitive match (e.g. Archi vs ARCHI)
-      .ilike('roll_number', rollNumber) // Use ilike for case-insensitive roll number match
+      .ilike('year', year)
+      .ilike('major', major)
+      .ilike('roll_number', rollNumber) 
       .eq('type', 'Student')
       .maybeSingle(); 
 
@@ -314,7 +302,6 @@ export const verifyTeacher = async (major: Major, name: string, passcode: string
 
   try {
      if (isMockMode || !supabase) {
-        // Mock check
         const found = MOCK_STUDENTS.find(s => 
             s.type === 'Teacher' &&
             s.major === major &&
@@ -339,11 +326,10 @@ export const verifyTeacher = async (major: Major, name: string, passcode: string
         };
      }
 
-     // Database check
      const { data, error } = await supabase
         .from('students')
         .select('*')
-        .ilike('major', major) // Use ilike for case-insensitive match
+        .ilike('major', major) 
         .eq('name', name)
         .eq('type', 'Teacher')
         .maybeSingle();
@@ -394,7 +380,7 @@ export const fetchTeachers = async (major?: Major): Promise<string[]> => {
             .eq('type', 'Teacher');
         
         if (major) {
-            query = query.eq('major', major);
+            query = query.ilike('major', major);
         }
 
         const { data, error } = await query;
@@ -411,7 +397,6 @@ export const fetchStudents = async () => {
       return MOCK_STUDENTS;
     }
 
-    // Implementing pagination to fetch ALL students (overcoming 1000 row limit)
     let allStudents: any[] = [];
     let from = 0;
     const batchSize = 1000;
@@ -432,7 +417,6 @@ export const fetchStudents = async () => {
         if (data && data.length > 0) {
             allStudents = [...allStudents, ...data];
             from += batchSize;
-            // If we received fewer rows than asked, we've reached the end
             if (data.length < batchSize) {
                 fetchMore = false;
             }
@@ -485,8 +469,6 @@ export const fetchTotalTeacherCount = async (): Promise<number> => {
 export const addStudent = async (name: string, year: string, major: string, rollNumber: string, passcode: string) => {
   try {
     if (isMockMode || !supabase) {
-      console.log("Mock Mode: Student added", { name, year, major });
-      // Check for duplicate in mock
       const exists = MOCK_STUDENTS.some(s => s.rollNumber === rollNumber && s.year === year && s.major === major);
       if (exists) throw new Error("Duplicate Student");
 
@@ -518,12 +500,9 @@ export const addStudent = async (name: string, year: string, major: string, roll
 
 export const addTeacher = async (name: string, major: string, passcode: string) => {
     try {
-      // Generate a unique ID for the roll_number column to satisfy DB constraints
-      // while avoiding the generic 'Staff' string which causes duplicate key errors
       const uniqueRoll = `T-${Date.now().toString().slice(-6)}`;
 
       if (isMockMode || !supabase) {
-         console.log("Mock Mode: Teacher added", { name, major, passcode });
          MOCK_STUDENTS.unshift({
             id: `mock-t-${Date.now()}`,
             name,
@@ -542,7 +521,7 @@ export const addTeacher = async (name: string, major: string, passcode: string) 
         .insert([{ 
             name, 
             major, 
-            year: Year.Staff, // "Teacher" from Enum
+            year: Year.Staff, 
             roll_number: uniqueRoll, 
             passcode: passcode || 'TEACHER', 
             type: 'Teacher', 
@@ -561,7 +540,6 @@ export const addTeacher = async (name: string, major: string, passcode: string) 
 export const updateStudentVoteStatus = async (studentId: string, hasVoted: boolean) => {
   try {
     if (isMockMode || !supabase) {
-      console.log(`Mock Mode: Student ${studentId} status updated to ${hasVoted}`);
       const student = MOCK_STUDENTS.find(s => s.id === studentId);
       if (student) student.hasVoted = hasVoted;
       return;
@@ -582,7 +560,6 @@ export const updateStudentVoteStatus = async (studentId: string, hasVoted: boole
 export const deleteStudent = async (id: string) => {
   try {
     if (isMockMode || !supabase) {
-      console.log("Mock Mode: Student/Teacher deleted", id);
       const idx = MOCK_STUDENTS.findIndex(s => s.id === id);
       if (idx > -1) MOCK_STUDENTS.splice(idx, 1);
       return;
@@ -601,7 +578,6 @@ export const deleteStudent = async (id: string) => {
 export const bulkDeleteStudents = async (ids: string[]) => {
   try {
     if (isMockMode || !supabase) {
-      console.log("Mock Mode: Bulk delete students", ids);
       for (const id of ids) {
         const idx = MOCK_STUDENTS.findIndex(s => s.id === id);
         if (idx > -1) MOCK_STUDENTS.splice(idx, 1);
@@ -622,7 +598,6 @@ export const bulkDeleteStudents = async (ids: string[]) => {
 export const bulkUpdateStudentStatus = async (ids: string[], hasVoted: boolean) => {
   try {
     if (isMockMode || !supabase) {
-      console.log(`Mock Mode: Bulk update status for ${ids.length} students to ${hasVoted}`);
       MOCK_STUDENTS.forEach(s => {
           if (ids.includes(s.id!)) s.hasVoted = hasVoted;
       });
@@ -643,7 +618,6 @@ export const bulkUpdateStudentStatus = async (ids: string[], hasVoted: boolean) 
 export const bulkUpdateClassPasscode = async (year: Year, major: Major, newPasscode: string) => {
     try {
         if (isMockMode || !supabase) {
-            console.log(`Mock Mode: Passcode for ${year} ${major} updated to ${newPasscode}`);
             MOCK_STUDENTS.forEach(s => {
                 if (s.year === year && s.major === major) {
                     s.passcode = newPasscode;
@@ -654,16 +628,12 @@ export const bulkUpdateClassPasscode = async (year: Year, major: Major, newPassc
 
         const type = year === Year.Staff ? 'Teacher' : 'Student';
         
-        // Use a smarter query builder
         let query = supabase.from('students').update({ passcode: newPasscode });
 
         if (type === 'Teacher') {
-           // For Teachers: Update all teachers of that major, regardless of whether 'year' says 'Staff' or 'Teacher' in DB
-           // This fixes issues if the enum changed from Staff to Teacher
-           query = query.eq('major', major).eq('type', 'Teacher');
+           query = query.ilike('major', major).eq('type', 'Teacher');
         } else {
-           // For Students: Must match year exactly
-           query = query.eq('year', year).eq('major', major).eq('type', 'Student');
+           query = query.ilike('year', year).ilike('major', major).eq('type', 'Student');
         }
             
         const { error } = await query;
@@ -678,13 +648,11 @@ export const bulkUpdateClassPasscode = async (year: Year, major: Major, newPassc
 
 // --- Votes ---
 
-// Mock votes storage
 const MOCK_VOTES: any[] = [];
 
 export const submitVote = async (studentId: string, votes: Votes) => {
   try {
     if (isMockMode || !supabase) {
-      console.log("Mock Mode: Vote submitted for", studentId, votes);
       const student = MOCK_STUDENTS.find(s => s.id === studentId);
       if (student && student.hasVoted) throw new Error("Already voted");
 
@@ -697,7 +665,6 @@ export const submitVote = async (studentId: string, votes: Votes) => {
       return;
     }
 
-    // 1. Safety Check: Check status before inserting to prevent race conditions during lag
     const { data: studentCheck, error: checkError } = await supabase
       .from('students')
       .select('has_voted')
@@ -721,7 +688,6 @@ export const submitVote = async (studentId: string, votes: Votes) => {
 
     if (voteError) throw voteError;
 
-    // Update status
     const { error: studentError } = await supabase
     .from('students')
     .update({ has_voted: true })
@@ -776,7 +742,6 @@ export const fetchVoteResults = async () => {
 export const resetAllVotes = async () => {
   try {
     if (isMockMode || !supabase) {
-      console.log("Mock Mode: All votes reset.");
       MOCK_VOTES.length = 0;
       MOCK_STUDENTS.forEach(s => s.hasVoted = false);
       return;

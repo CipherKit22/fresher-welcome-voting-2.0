@@ -15,10 +15,10 @@ export enum Year {
 export enum Major {
   Civil = "Civil",
   Archi = "Archi",
-  CEIT = "CEIT",
   EP = "EP",
   EC = "EC",
-  Mechanical = "Mechanical",
+  CEIT = "CEIT",
+  Mech = "Mech",
   MC = "MC",
   Myanmar = "Myanmar",
   English = "English",

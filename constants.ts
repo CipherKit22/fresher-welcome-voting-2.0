@@ -1,49 +1,70 @@
 
 import { Candidate, Major, Year, StudentInfo } from "./types";
 
-// Generate unique fruit passcodes for 9 years (Y1-Y6, M1, M2, Teacher is separate) * 7 majors
-// Expanded list to cover new Master classes
-export const FRUITS = [
-  // Y1 (0-6)
-  "Apple", "Apricot", "Avocado", "Banana", "Blackberry", "Blueberry", "Boysenberry",
-  // Y2 (7-13)
-  "Cantaloupe", "Cherry", "Clementine", "Coconut", "Cranberry", "Date", "Dragonfruit",
-  // Y3 (14-20)
-  "Durian", "Elderberry", "Grape", "Fig", "Gooseberry", "Grapefruit", "Guava",
-  // Y4S1 (21-27)
-  "Honeydew", "Jackfruit", "Kiwi", "Kumquat", "Lemon", "Lime", "Lychee",
-  // Y4S2 (28-34)
-  "Mandarin", "Mango", "Mangosteen", "Melon", "Mulberry", "Nectarine", "Orange",
-  // Y5 (35-41)
-  "Papaya", "Passionfruit", "Peach", "Pear", "Persimmon", "Pineapple", "Plantain",
-  // Y6 (42-48)
-  "Plum", "Pomegranate", "Pomelo", "Quince", "Raspberry", "Redcurrant", "Starfruit",
-  // Master 1st Year (49-55)
-  "Strawberry", "Tamarind", "Tangerine", "Watermelon", "Yuzu", "Ackee", "Bilberry",
-  // Master 2nd Year (56-62)
-  "Cacao", "Feijoa", "Huckleberry", "Jujube", "Juniper", "Longan", "Loquat",
-  // Extras / Spares
-  "Olive", "Rambutan", "Salak"
-];
+// specific codes provided
+const PASSCODE_MAP: Record<string, Record<string, string>> = {
+  [Major.Civil]: {
+    [Year.Y1]: "QXTA", [Year.Y2]: "NQBM", [Year.Y3]: "DPRK",
+    [Year.Y4S1]: "WQFA", [Year.Y4S2]: "XJME", [Year.Y5]: "BVXT", [Year.Y6]: "NXKP",
+    [Year.Master1]: "QZMX", [Year.Master2]: "ABCD", [Year.Staff]: "TCVQ"
+  },
+  [Major.Archi]: {
+    [Year.Y1]: "LMPF", [Year.Y2]: "YVKA", [Year.Y3]: "ZMWF",
+    [Year.Y4S1]: "CLRM", [Year.Y4S2]: "KQBP", [Year.Y5]: "QLMP", [Year.Y6]: "ZQWA",
+    [Year.Master1]: "LTAK", [Year.Master2]: "ABDC", [Year.Staff]: "TARC"
+  },
+  [Major.CEIT]: {
+    [Year.Y1]: "ZKWR", [Year.Y2]: "FZRX", [Year.Y3]: "HSXT",
+    [Year.Y4S1]: "PZHN", [Year.Y4S2]: "TLRH", [Year.Y5]: "ZDNA", [Year.Y6]: "FHRT",
+    [Year.Master1]: "RHYW", [Year.Master2]: "ADBC", [Year.Staff]: "TCIT"
+  },
+  [Major.EP]: {
+    [Year.Y1]: "BHSN", [Year.Y2]: "CHDL", [Year.Y3]: "JQLN",
+    [Year.Y4S1]: "KTXB", [Year.Y4S2]: "DSVN", [Year.Y5]: "RHYK", [Year.Y6]: "DLVY",
+    [Year.Master1]: "BPND", [Year.Master2]: "BADC", [Year.Staff]: "TEPY"
+  },
+  [Major.EC]: {
+    [Year.Y1]: "JYQD", [Year.Y2]: "PWJT", [Year.Y3]: "RBYC",
+    [Year.Y4S1]: "MYDS", [Year.Y4S2]: "AMXZ", [Year.Y5]: "MCAF", [Year.Y6]: "MPSA",
+    [Year.Master1]: "MFKQ", [Year.Master2]: "BCDA", [Year.Staff]: "TEEC"
+  },
+  [Major.Mech]: {
+    [Year.Y1]: "RAVK", [Year.Y2]: "KMSE", [Year.Y3]: "MVEA",
+    [Year.Y4S1]: "EVKA", [Year.Y4S2]: "QWRT", [Year.Y5]: "PSWQ", [Year.Y6]: "KTXR",
+    [Year.Master1]: "XSRA", [Year.Master2]: "DCBA", [Year.Staff]: "TMCH"
+  },
+  [Major.MC]: {
+    [Year.Y1]: "TXEL", [Year.Y2]: "AXQN", [Year.Y3]: "TXKP",
+    [Year.Y4S1]: "RBQL", [Year.Y4S2]: "HPLK", [Year.Y5]: "KJTX", [Year.Y6]: "BQLN",
+    [Year.Master1]: "JVTL", [Year.Master2]: "DABC", [Year.Staff]: "TMCC"
+  },
+  [Major.English]: { [Year.Staff]: "TENG" },
+  [Major.Math]: { [Year.Staff]: "TMAT" },
+  [Major.Chem]: { [Year.Staff]: "TCHM" },
+  [Major.Phys]: { [Year.Staff]: "TPHY" }
+};
 
 // Define Majors available for Students (Engineering only)
+// Explicitly using the requested list: Civil, Archi, EP, EC, CEIT, Mech, MC
 export const STUDENT_MAJORS = [
   Major.Civil,
   Major.Archi,
-  Major.CEIT,
   Major.EP,
   Major.EC,
-  Major.Mechanical,
+  Major.CEIT,
+  Major.Mech,
   Major.MC
 ];
 
 // Helper to get passcode deterministically
 export const getClassPasscode = (year: Year, major: Major): string => {
-  const yearIndex = Object.values(Year).indexOf(year);
-  const majorIndex = Object.values(Major).indexOf(major);
-  // Ensure we don't go out of bounds if Year enum grows
-  const flatIndex = (yearIndex * 7 + majorIndex) % FRUITS.length;
-  return FRUITS[flatIndex];
+  // Check if major exists in map
+  if (PASSCODE_MAP[major] && PASSCODE_MAP[major][year]) {
+      return PASSCODE_MAP[major][year];
+  }
+  
+  // Default fallback if not defined in the specific list above
+  return "1234";
 };
 
 // Fallback time if DB fetch fails

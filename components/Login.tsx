@@ -10,13 +10,6 @@ interface LoginProps {
   onGuestClick: () => void;
 }
 
-const Spinner: React.FC = () => (
-  <svg className="animate-spin h-4 w-4 text-current inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-  </svg>
-);
-
 const Login: React.FC<LoginProps> = ({ onLogin, onAdminClick, onGuestClick }) => {
   const [activeTab, setActiveTab] = useState<'student' | 'teacher'>('student');
   
@@ -48,14 +41,12 @@ const Login: React.FC<LoginProps> = ({ onLogin, onAdminClick, onGuestClick }) =>
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [teacherList, setTeacherList] = useState<string[]>([]);
   
-  // Load teachers when major changes for autocomplete
   useEffect(() => {
     if (activeTab === 'teacher') {
         fetchTeachers(major).then(names => setTeacherList(names));
     }
   }, [major, activeTab]);
 
-  // Handle Search in Check Registration
   useEffect(() => {
     const delayDebounceFn = setTimeout(async () => {
         if (checkQuery.length >= 2) {
@@ -71,7 +62,6 @@ const Login: React.FC<LoginProps> = ({ onLogin, onAdminClick, onGuestClick }) =>
     return () => clearTimeout(delayDebounceFn);
   }, [checkQuery, checkYear, checkMajor]);
 
-  // Filter teachers
   const filteredTeachers = teacherList.filter(name => 
     name.toLowerCase().includes(teacherName.toLowerCase())
   );
@@ -119,460 +109,295 @@ const Login: React.FC<LoginProps> = ({ onLogin, onAdminClick, onGuestClick }) =>
   }, []);
 
   if (verifiedUser) {
+    // Only show relevant badges for teachers
+    const isTeacher = verifiedUser.type === 'Teacher';
     return (
-      <div className="w-full max-w-md glass-panel-textured p-8 shadow-2xl relative overflow-hidden animate-fadeIn rounded-2xl border border-white/50">
-        <h2 className="text-2xl font-tech text-center mb-6 text-slate-800 tracking-wider">Hello!</h2>
-        <div className="bg-cyan-50 p-6 mb-6 text-center border border-cyan-100 rounded-xl">
-          <p className="text-cyan-600 text-xs uppercase tracking-wider mb-2 font-bold">Welcome</p>
-          <p className="text-3xl font-bold text-slate-800 font-tech">
-            {verifiedUser.name}
-          </p>
-          <div className="flex justify-center gap-2 mt-4 text-cyan-800 text-xs font-bold uppercase flex-wrap">
-            <span className="bg-white px-3 py-1 rounded-full border border-cyan-100 shadow-sm">{verifiedUser.type}</span>
-            <span className="bg-white px-3 py-1 rounded-full border border-cyan-100 shadow-sm">{verifiedUser.major}</span>
-            {verifiedUser.type === 'Student' && (
-                <span className="bg-white px-3 py-1 rounded-full border border-cyan-100 shadow-sm">Roll: {verifiedUser.rollNumber}</span>
-            )}
-          </div>
-        </div>
-        
-        <div className="flex gap-4">
-          <button 
-            onClick={() => setVerifiedUser(null)}
-            className="flex-1 px-6 py-3 border border-slate-300 text-slate-500 hover:bg-slate-100 transition-colors uppercase text-xs font-bold tracking-wider rounded-lg"
-          >
-            Not Me
-          </button>
-          <button 
-            onClick={confirmLogin}
-            className="flex-1 px-6 py-3 bg-cyan-600 hover:bg-cyan-700 text-white font-bold shadow-lg shadow-cyan-200 transition-all uppercase text-xs tracking-wider rounded-lg"
-          >
-            Start Voting
-          </button>
-        </div>
+      <div className="w-full max-w-md bg-white rounded-3xl shadow-xl p-8 relative overflow-hidden text-center font-tech">
+         <h2 className="text-3xl font-bold text-slate-800 mb-8 uppercase tracking-widest">Hello!</h2>
+         
+         <div className="bg-cyan-50/50 border border-cyan-100 rounded-2xl p-6 mb-8">
+            <p className="text-cyan-600 font-bold text-[10px] uppercase tracking-widest mb-3">Welcome</p>
+            <h3 className="text-2xl font-bold text-slate-800 mb-4 uppercase tracking-wider">{verifiedUser.name}</h3>
+            
+            <div className="flex justify-center gap-2 flex-wrap">
+               {/* Display Year/Role Badge */}
+               <span className="bg-white px-3 py-1.5 rounded-lg text-[10px] font-bold text-slate-500 shadow-sm border border-slate-100 uppercase tracking-wide">{verifiedUser.year}</span>
+               
+               {/* Display Major/Department Badge */}
+               <span className="bg-white px-3 py-1.5 rounded-lg text-[10px] font-bold text-slate-500 shadow-sm border border-slate-100 uppercase tracking-wide">{verifiedUser.major}</span>
+               
+               {/* Display Roll Number only for Students */}
+               {!isTeacher && (
+                   <span className="bg-white px-3 py-1.5 rounded-lg text-[10px] font-bold text-slate-500 shadow-sm border border-slate-100 uppercase tracking-wide">Roll: {verifiedUser.rollNumber}</span>
+               )}
+            </div>
+         </div>
+
+         <div className="flex gap-4">
+             <button onClick={() => setVerifiedUser(null)} className="flex-1 py-4 rounded-xl border-2 border-slate-200 text-slate-500 font-bold text-xs uppercase hover:bg-slate-50 transition-colors tracking-widest">Not Me</button>
+             <button onClick={confirmLogin} className="flex-1 py-4 rounded-xl bg-[#0891b2] text-white font-bold text-xs uppercase shadow-lg shadow-cyan-200 hover:bg-[#0e7490] transition-colors tracking-widest">Start Voting</button>
+         </div>
       </div>
     );
   }
 
   return (
-    <div className="w-full max-w-md flex flex-col items-center">
-      <div className="w-full glass-panel-textured p-8 shadow-2xl relative overflow-hidden rounded-2xl min-h-[550px]">
-        
-        {/* Help Button */}
-        <button 
-          onClick={() => setShowTutorial(true)}
-          className="absolute top-4 right-4 text-cyan-600 hover:bg-cyan-50 hover:text-cyan-700 transition-all p-2 z-20 rounded-full"
-          title="Login Guide"
-          type="button"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.321-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
-          </svg>
-        </button>
+    <div className="w-full max-w-md flex flex-col items-center font-tech">
+      <div className="w-full bg-white rounded-3xl shadow-2xl p-8 relative overflow-hidden">
+         {/* Help Icon */}
+         <button 
+           onClick={() => setShowTutorial(true)} 
+           className="absolute top-6 right-6 text-cyan-600 hover:text-cyan-800 transition-colors"
+           type="button"
+         >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+         </button>
 
-        <div className="text-center mb-6 relative z-10 flex flex-col items-center">
-          <img 
-            src="https://hbtu.edu.mm/img/Hmawbi-logo.png"
-            alt="TU Hmawbi Logo"
-            className="w-16 h-20 object-contain mb-2 drop-shadow-md"
-          />
-          <h1 className="text-2xl font-tech text-slate-800 tracking-wide">
-            Welcome
-          </h1>
-          <p className="text-slate-500 text-[10px] font-medium uppercase tracking-wider">Please Login to Vote</p>
-        </div>
-
-        {/* Custom Tabs */}
-        <div className="flex gap-4 mb-6 relative z-10">
-           <button
-             onClick={() => { setActiveTab('student'); setError(''); }}
-             className={`flex-1 flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all duration-300 ${activeTab === 'student' ? 'border-cyan-500 bg-cyan-50/50 text-cyan-700 shadow-md scale-[1.02]' : 'border-slate-200 bg-white text-slate-400 hover:border-slate-300'}`}
-           >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
-              </svg>
-              <span className="font-tech font-bold text-sm uppercase tracking-wider">Student</span>
-           </button>
-           <button
-             onClick={() => { setActiveTab('teacher'); setError(''); }}
-             className={`flex-1 flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all duration-300 ${activeTab === 'teacher' ? 'border-cyan-500 bg-cyan-50/50 text-cyan-700 shadow-md scale-[1.02]' : 'border-slate-200 bg-white text-slate-400 hover:border-slate-300'}`}
-           >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-              </svg>
-              <span className="font-tech font-bold text-sm uppercase tracking-wider">Teacher</span>
-           </button>
-        </div>
-
-        <form onSubmit={handleVerify} className="space-y-4 relative z-10">
-          
-          {/* --- STUDENT FORM --- */}
-          {activeTab === 'student' && (
-            <div className="space-y-4 animate-fadeIn">
-                <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 ml-1">Academic Year</label>
-                    <div className="relative group">
-                    <select 
-                        value={year} 
-                        onChange={(e) => setYear(e.target.value as Year)}
-                        className="w-full bg-white border border-slate-300 text-slate-800 px-4 py-3 appearance-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 outline-none transition-all cursor-pointer text-sm rounded-lg shadow-sm pr-10"
-                    >
-                        {Object.values(Year).filter(y => y !== Year.Staff).map(y => <option key={y} value={y}>{y}</option>)}
-                    </select>
-                    <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none text-slate-500">
-                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                    </div>
-                    </div>
-                </div>
-
-                <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 ml-1">Major</label>
-                    <div className="relative">
-                    <select 
-                        value={major} 
-                        onChange={(e) => setMajor(e.target.value as Major)}
-                        className="w-full bg-white border border-slate-300 text-slate-800 px-4 py-3 appearance-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 outline-none transition-all cursor-pointer text-sm rounded-lg shadow-sm pr-10"
-                    >
-                        {STUDENT_MAJORS.map(m => <option key={m} value={m}>{m}</option>)}
-                    </select>
-                    <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none text-slate-500">
-                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                    </div>
-                    </div>
-                </div>
-
-                <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 ml-1">Roll Number</label>
-                    <input 
-                    type="text"
-                    inputMode="numeric"
-                    value={rollNumber}
-                    onChange={(e) => setRollNumber(e.target.value.replace(/\D/g, ''))}
-                    required
-                    placeholder="e.g. 1"
-                    className="w-full bg-white border border-slate-300 text-slate-800 px-4 py-3 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 outline-none transition-all placeholder-slate-400 text-sm rounded-lg shadow-sm"
-                    />
-                </div>
-
-                <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 ml-1">Class Passcode</label>
-                    <div className="relative">
-                        <input 
-                        type={showPasscode ? 'text' : 'password'}
-                        value={passcode}
-                        onChange={(e) => setPasscode(e.target.value)}
-                        required
-                        placeholder="Get from your EC"
-                        className="w-full bg-white border border-slate-300 text-slate-800 px-4 py-3 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 outline-none transition-all placeholder-slate-400 text-sm tracking-widest rounded-lg shadow-sm pr-10"
-                        />
-                        <button 
-                        type="button" 
-                        onClick={() => setShowPasscode(!showPasscode)}
-                        className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 hover:text-cyan-600 transition-colors"
-                        >
-                        {showPasscode ? (
-                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-                            </svg>
-                        ) : (
-                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                            </svg>
-                        )}
-                        </button>
-                    </div>
-                </div>
-                
-                {/* Check Registration Link */}
-                <div className="flex justify-center pt-2">
-                    <button 
-                        type="button" 
-                        onClick={() => setShowCheckReg(true)} 
-                        className="text-cyan-600 text-xs font-bold uppercase tracking-wide hover:underline flex items-center gap-1"
-                    >
-                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                        Check Registration Status
-                    </button>
-                </div>
+         {/* Tutorial Modal Overlay */}
+         {showTutorial && (
+            <div className="absolute inset-0 z-50 bg-white/95 backdrop-blur flex flex-col items-center justify-center p-8 animate-fadeIn text-center">
+                <h3 className="text-xl font-bold text-slate-800 mb-6 uppercase tracking-widest">Login Guide</h3>
+                <ul className="text-left space-y-4 text-slate-600 text-xs font-bold mb-8 w-full">
+                    <li className="flex gap-3 items-start">
+                    <span className="bg-cyan-100 text-cyan-600 rounded-full w-5 h-5 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">1</span>
+                    Select your Academic Year and Major correctly.
+                    </li>
+                    <li className="flex gap-3 items-start">
+                    <span className="bg-cyan-100 text-cyan-600 rounded-full w-5 h-5 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">2</span>
+                    Enter your Roll Number (e.g., 1, 42).
+                    </li>
+                    <li className="flex gap-3 items-start">
+                    <span className="bg-cyan-100 text-cyan-600 rounded-full w-5 h-5 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">3</span>
+                    Enter the Passcode provided by your EC (e.g., "QXTA").
+                    </li>
+                </ul>
+                <button onClick={() => setShowTutorial(false)} className="bg-slate-800 text-white px-8 py-3 rounded-xl font-bold uppercase tracking-widest text-xs hover:bg-slate-700 w-full shadow-lg">Got it</button>
             </div>
-          )}
+         )}
 
-          {/* --- TEACHER FORM --- */}
-          {activeTab === 'teacher' && (
-             <div className="space-y-4 animate-fadeIn">
-                <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 ml-1">Department</label>
-                    <div className="relative">
-                    <select 
-                        value={major} 
-                        onChange={(e) => {
-                            setMajor(e.target.value as Major);
-                            setTeacherName(''); // Reset name when major changes
-                        }}
-                        className="w-full bg-white border border-slate-300 text-slate-800 px-4 py-3 appearance-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 outline-none transition-all cursor-pointer text-sm rounded-lg shadow-sm pr-10"
-                    >
-                        {/* Teachers can be from any major/dept */}
-                        {Object.values(Major).map(m => <option key={m} value={m}>{m}</option>)}
-                    </select>
-                    <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none text-slate-500">
-                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                    </div>
-                    </div>
-                </div>
+         <div className="text-center mb-8">
+            <img src="https://hbtu.edu.mm/img/Hmawbi-logo.png" alt="Logo" className="w-16 h-20 object-contain mx-auto mb-4" />
+            <h1 className="text-3xl font-bold text-slate-800 uppercase tracking-widest">Welcome</h1>
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-1">Please Login to Vote</p>
+         </div>
 
-                <div className="relative" ref={dropdownRef}>
-                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 ml-1">Name</label>
-                   <div className="relative">
-                        <input
-                            type="text"
-                            value={teacherName}
-                            onChange={(e) => {
-                                setTeacherName(e.target.value);
-                                setIsDropdownOpen(true);
-                            }}
-                            onFocus={() => setIsDropdownOpen(true)}
-                            placeholder="Type to search name..."
-                            className="w-full bg-white border border-slate-300 text-slate-800 px-4 py-3 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 outline-none transition-all placeholder-slate-400 text-sm rounded-lg shadow-sm"
-                            required
-                        />
-                        {/* Search Icon */}
-                        <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none text-slate-400">
-                           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                           </svg>
-                        </div>
-                   </div>
+         {/* Tabs */}
+         <div className="flex gap-4 mb-8">
+            <button 
+              onClick={() => {setActiveTab('student'); setError('');}}
+              className={`flex-1 py-4 rounded-xl font-bold uppercase tracking-wider text-sm border-2 transition-all flex flex-col items-center gap-1 ${activeTab === 'student' ? 'border-[#0891b2] text-[#0891b2] bg-cyan-50/50' : 'border-slate-200 text-slate-400 hover:border-slate-300'}`}
+            >
+               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
+               </svg>
+               Student
+            </button>
+            <button 
+              onClick={() => {setActiveTab('teacher'); setError('');}}
+              className={`flex-1 py-4 rounded-xl font-bold uppercase tracking-wider text-sm border-2 transition-all flex flex-col items-center gap-1 ${activeTab === 'teacher' ? 'border-[#0891b2] text-[#0891b2] bg-cyan-50/50' : 'border-slate-200 text-slate-400 hover:border-slate-300'}`}
+            >
+               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+               </svg>
+               Teacher
+            </button>
+         </div>
 
-                   {/* Custom Dropdown Menu */}
-                   {isDropdownOpen && (
-                       <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-48 overflow-y-auto custom-scrollbar animate-fadeIn">
-                           {filteredTeachers.length > 0 ? (
-                               filteredTeachers.map((name, idx) => (
-                                   <div 
-                                      key={idx}
-                                      onClick={() => {
-                                          setTeacherName(name);
-                                          setIsDropdownOpen(false);
-                                      }}
-                                      className="px-4 py-2 hover:bg-cyan-50 cursor-pointer text-sm text-slate-700 font-medium transition-colors"
-                                   >
+         <form onSubmit={handleVerify} className="space-y-5 animate-fadeIn">
+            {activeTab === 'student' && (
+                <>
+                  <div>
+                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 pl-1">Academic Year</label>
+                      <div className="relative">
+                          <select value={year} onChange={(e) => setYear(e.target.value as Year)} className="w-full bg-white border-2 border-slate-200 text-slate-700 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-[#0891b2] transition-colors appearance-none font-tech">
+                              {Object.values(Year).filter(y => y !== Year.Staff).map(y => <option key={y} value={y}>{y}</option>)}
+                          </select>
+                          <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none text-slate-400">
+                             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                          </div>
+                      </div>
+                  </div>
+
+                  <div>
+                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 pl-1">Major</label>
+                      <div className="relative">
+                          <select value={major} onChange={(e) => setMajor(e.target.value as Major)} className="w-full bg-white border-2 border-slate-200 text-slate-700 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-[#0891b2] transition-colors appearance-none font-tech">
+                              {STUDENT_MAJORS.map(m => <option key={m} value={m}>{m}</option>)}
+                          </select>
+                          <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none text-slate-400">
+                             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                          </div>
+                      </div>
+                  </div>
+
+                  <div>
+                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 pl-1">Roll Number</label>
+                      <input 
+                        type="text" 
+                        value={rollNumber}
+                        onChange={(e) => setRollNumber(e.target.value)}
+                        placeholder="e.g. 1"
+                        className="w-full bg-white border-2 border-slate-200 text-slate-700 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-[#0891b2] transition-colors placeholder:font-normal font-tech"
+                      />
+                  </div>
+
+                  <div>
+                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 pl-1">Class Passcode</label>
+                      <div className="relative">
+                          <input 
+                            type={showPasscode ? "text" : "password"} 
+                            value={passcode}
+                            onChange={(e) => setPasscode(e.target.value)}
+                            placeholder="Get from your EC"
+                            className="w-full bg-white border-2 border-slate-200 text-slate-700 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-[#0891b2] transition-colors placeholder:font-normal font-tech"
+                          />
+                          <button type="button" onClick={() => setShowPasscode(!showPasscode)} className="absolute inset-y-0 right-4 text-slate-400 hover:text-[#0891b2]">
+                             {showPasscode ? (
+                                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
+                             ) : (
+                                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                             )}
+                          </button>
+                      </div>
+                  </div>
+                </>
+            )}
+
+            {activeTab === 'teacher' && (
+                <>
+                  <div>
+                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 pl-1">Department</label>
+                      <div className="relative">
+                          <select value={major} onChange={(e) => setMajor(e.target.value as Major)} className="w-full bg-white border-2 border-slate-200 text-slate-700 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-[#0891b2] transition-colors appearance-none font-tech">
+                              {Object.values(Major).map(m => <option key={m} value={m}>{m}</option>)}
+                          </select>
+                          <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none text-slate-400">
+                             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                          </div>
+                      </div>
+                  </div>
+
+                  <div className="relative" ref={dropdownRef}>
+                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 pl-1">Name</label>
+                      <input 
+                        type="text" 
+                        value={teacherName}
+                        onChange={(e) => { setTeacherName(e.target.value); setIsDropdownOpen(true); }}
+                        onFocus={() => setIsDropdownOpen(true)}
+                        placeholder="Search Name..."
+                        className="w-full bg-white border-2 border-slate-200 text-slate-700 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-[#0891b2] transition-colors placeholder:font-normal font-tech"
+                      />
+                      {isDropdownOpen && teacherList.length > 0 && (
+                          <div className="absolute z-10 w-full mt-1 bg-white border-2 border-slate-100 rounded-xl shadow-xl max-h-40 overflow-y-auto custom-scrollbar font-tech">
+                              {filteredTeachers.map((name, i) => (
+                                  <div key={i} onClick={() => { setTeacherName(name); setIsDropdownOpen(false); }} className="px-4 py-2 hover:bg-cyan-50 cursor-pointer text-sm font-bold text-slate-600">
                                       {name}
-                                   </div>
-                               ))
-                           ) : (
-                               <div className="px-4 py-3 text-sm text-slate-400 italic">No teachers found in {major}</div>
-                           )}
-                       </div>
-                   )}
-                </div>
+                                  </div>
+                              ))}
+                          </div>
+                      )}
+                  </div>
 
-                <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 ml-1">Passcode</label>
-                    <div className="relative">
-                        <input 
-                        type={showTeacherPasscode ? 'text' : 'password'}
-                        value={teacherPasscode}
-                        onChange={(e) => setTeacherPasscode(e.target.value)}
-                        required
-                        placeholder="Department Passcode"
-                        className="w-full bg-white border border-slate-300 text-slate-800 px-4 py-3 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 outline-none transition-all placeholder-slate-400 text-sm tracking-widest rounded-lg shadow-sm pr-10"
-                        />
-                        <button 
-                        type="button" 
-                        onClick={() => setShowTeacherPasscode(!showTeacherPasscode)}
-                        className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 hover:text-cyan-600 transition-colors"
-                        >
-                        {showTeacherPasscode ? (
-                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-                            </svg>
-                        ) : (
-                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                            </svg>
-                        )}
-                        </button>
-                    </div>
-                </div>
-             </div>
-          )}
+                  <div>
+                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 pl-1">Passcode</label>
+                      <div className="relative">
+                          <input 
+                            type={showTeacherPasscode ? "text" : "password"} 
+                            value={teacherPasscode}
+                            onChange={(e) => setTeacherPasscode(e.target.value)}
+                            placeholder="Department Passcode"
+                            className="w-full bg-white border-2 border-slate-200 text-slate-700 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-[#0891b2] transition-colors placeholder:font-normal font-tech"
+                          />
+                          <button type="button" onClick={() => setShowTeacherPasscode(!showTeacherPasscode)} className="absolute inset-y-0 right-4 text-slate-400 hover:text-[#0891b2]">
+                             {showTeacherPasscode ? (
+                                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
+                             ) : (
+                                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                             )}
+                          </button>
+                      </div>
+                  </div>
+                </>
+            )}
 
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 text-xs font-medium flex items-center gap-3 rounded-lg animate-slideIn">
-              <span className="font-bold">Error:</span> {error}
-            </div>
-          )}
-
-          <div className="space-y-3 mt-4">
-            <button 
-                type="submit"
-                disabled={loading}
-                className="w-full bg-cyan-600 hover:bg-cyan-700 text-white font-tech font-bold py-4 uppercase tracking-widest shadow-lg shadow-cyan-200 transition-all duration-300 rounded-lg disabled:opacity-50"
-            >
-                {loading ? 'Checking...' : 'Login'}
-            </button>
-
-            <button 
-                type="button"
-                onClick={onGuestClick}
-                className="w-full border-2 border-slate-300 hover:border-slate-400 text-slate-500 hover:text-slate-600 font-bold py-3 uppercase text-xs tracking-widest transition-all rounded-lg bg-white"
-            >
-                Guest Mode
-            </button>
-          </div>
-          
-          {/* VPN Warning - Moved here as requested */}
-          <div className="flex justify-center mt-2">
-             <p className="text-red-500 text-[10px] font-bold uppercase tracking-widest flex items-center gap-1 animate-pulse">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                </svg>
-                Do Not Use VPN
-             </p>
-          </div>
-        </form>
-
-        {/* Check Registration Modal */}
-        {showCheckReg && (
-            <div className="absolute inset-0 z-40 bg-white/95 backdrop-blur-md flex flex-col p-6 animate-fadeIn rounded-2xl">
-                <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-xl font-tech text-slate-800 uppercase tracking-wider">Registration Check</h3>
-                    <button onClick={() => setShowCheckReg(false)} className="text-slate-400 hover:text-red-500 transition-colors">
-                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            {activeTab === 'student' && (
+                <div className="flex justify-center pb-2">
+                    <button type="button" onClick={() => setShowCheckReg(true)} className="text-[#0891b2] text-[10px] font-bold uppercase tracking-widest flex items-center gap-1 hover:underline">
+                       <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                       Check Registration Status
                     </button>
                 </div>
+            )}
 
-                <div className="space-y-4 mb-4">
-                    <div className="grid grid-cols-2 gap-2">
-                        <select value={checkYear} onChange={(e) => setCheckYear(e.target.value as Year)} className="bg-slate-50 border border-slate-300 text-slate-800 p-2 rounded-lg text-xs outline-none focus:border-cyan-500">
-                            {Object.values(Year).filter(y => y !== Year.Staff).map(y => <option key={y} value={y}>{y}</option>)}
-                        </select>
-                        <select value={checkMajor} onChange={(e) => setCheckMajor(e.target.value as Major)} className="bg-slate-50 border border-slate-300 text-slate-800 p-2 rounded-lg text-xs outline-none focus:border-cyan-500">
-                            {STUDENT_MAJORS.map(m => <option key={m} value={m}>{m}</option>)}
-                        </select>
-                    </div>
-                    <div className="relative">
-                        <input 
-                            type="text" 
-                            placeholder="Type Name or Roll Number..." 
-                            value={checkQuery}
-                            onChange={(e) => setCheckQuery(e.target.value)}
-                            className="w-full bg-slate-50 border border-slate-300 text-slate-800 p-3 rounded-lg text-sm outline-none focus:border-cyan-500"
-                            autoFocus
-                        />
-                        <div className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400">
-                            {isChecking ? <Spinner /> : <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>}
-                        </div>
-                    </div>
-                </div>
+            {error && (
+               <div className="bg-red-50 text-red-500 text-xs font-bold p-3 rounded-lg border border-red-100 flex items-center gap-2">
+                  <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  {error}
+               </div>
+            )}
 
-                <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 border-t border-slate-100 pt-2">
-                    {checkQuery.length < 2 ? (
-                        <p className="text-center text-slate-400 text-xs mt-4">Type at least 2 characters to search.</p>
-                    ) : checkResults.length > 0 ? (
-                        checkResults.map((res, idx) => (
-                            <div key={idx} className="bg-slate-50 p-3 rounded-lg border border-slate-200 flex justify-between items-center">
-                                <div>
-                                    <p className="font-bold text-slate-800 text-sm">{res.name}</p>
-                                    <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Roll: {res.rollNumber}</p>
-                                </div>
-                                <span className={`text-[10px] font-bold px-2 py-1 rounded border uppercase tracking-wider ${res.hasVoted ? 'bg-green-50 text-green-600 border-green-200' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
-                                    {res.hasVoted ? 'Voted' : 'Pending'}
-                                </span>
-                            </div>
-                        ))
-                    ) : (
-                        !isChecking && <p className="text-center text-slate-400 text-xs mt-4">No matching students found.</p>
-                    )}
-                </div>
-            </div>
-        )}
+            <button type="submit" disabled={loading} className="w-full bg-[#0891b2] hover:bg-[#0e7490] text-white font-bold text-lg uppercase py-4 rounded-xl shadow-lg shadow-cyan-200/50 transition-all hover:-translate-y-1 tracking-widest">
+               {loading ? 'Checking...' : 'Login'}
+            </button>
+            
+            <button type="button" onClick={onGuestClick} className="w-full bg-white border-2 border-slate-200 text-slate-500 font-bold text-xs uppercase py-3 rounded-xl hover:bg-slate-50 transition-all tracking-widest">
+               Guest Mode
+            </button>
 
-        {/* Tutorial Overlay */}
-        {showTutorial && (
-          <div className="absolute inset-0 z-30 bg-white/95 backdrop-blur-md flex flex-col items-center justify-center animate-fadeIn overflow-hidden rounded-2xl">
-            <div className="w-full h-full p-6 overflow-y-auto custom-scrollbar flex flex-col items-center">
-                
-                <h3 className="text-2xl font-tech text-slate-800 mb-6 uppercase tracking-widest shrink-0 mt-2">Login Guide</h3>
-                
-                <div className="space-y-6 w-full max-w-sm text-left pb-4">
-                  <div className="flex gap-4 items-start">
-                    <div className="w-8 h-8 rounded-full bg-cyan-100 text-cyan-600 flex items-center justify-center font-bold shrink-0 text-sm border border-cyan-200">1</div>
-                    <div>
-                        <h4 className="font-bold text-slate-700 text-xs uppercase tracking-wider">Choose Type</h4>
-                        <p className="text-xs text-slate-500 mt-1 leading-relaxed">Select <span className="text-cyan-600 font-bold">Student</span> or <span className="text-cyan-600 font-bold">Teacher</span> tab.</p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex gap-4 items-start">
-                    <div className="w-8 h-8 rounded-full bg-cyan-100 text-cyan-600 flex items-center justify-center font-bold shrink-0 text-sm border border-cyan-200">2</div>
-                    <div>
-                        <h4 className="font-bold text-slate-700 text-xs uppercase tracking-wider">Get Passcode</h4>
-                        <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                            For Students: <span className="underline font-bold text-slate-700">Get your Passcode from your Class Leader (EC)</span>. It is a secret random word (e.g., "Apple" or "Sky").<br/>
-                            For Teachers: <span className="underline font-bold text-slate-700">Use the Department Passcode</span>.
-                        </p>
-                    </div>
-                  </div>
+            <p className="text-center text-[10px] font-bold text-red-400 uppercase tracking-widest pt-2 flex items-center justify-center gap-1">
+               <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
+               Do Not Use VPN
+            </p>
+         </form>
 
-                  <div className="flex gap-4 items-start">
-                    <div className="w-8 h-8 rounded-full bg-cyan-100 text-cyan-600 flex items-center justify-center font-bold shrink-0 text-sm border border-cyan-200">3</div>
-                    <div>
-                        <h4 className="font-bold text-slate-700 text-xs uppercase tracking-wider">Fill Details</h4>
-                        <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                            <strong>Students:</strong> Enter Year, Major, Roll Number and the Passcode.<br/>
-                            <strong>Teachers:</strong> Select Department, Name and enter Passcode.
-                        </p>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 pt-4 border-t border-slate-200 w-full">
-                    <h4 className="font-bold text-slate-700 text-xs uppercase tracking-wider mb-3 flex items-center gap-2">
-                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-red-500" viewBox="0 0 20 20" fill="currentColor">
-                         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
-                       </svg>
-                       Watch Demo
-                    </h4>
-                    <div className="w-full aspect-video bg-slate-900 rounded-lg overflow-hidden shadow-lg border border-slate-300 relative group">
-                        <iframe 
-                            src="https://www.youtube.com/embed/XqZsoesa55w?controls=1&modestbranding=1&rel=0" 
-                            title="Login Tutorial"
-                            className="w-full h-full opacity-90 group-hover:opacity-100 transition-opacity"
-                            frameBorder="0"
-                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                            allowFullScreen
-                        ></iframe>
-                    </div>
-                  </div>
-                </div>
-
-                <button 
-                  onClick={() => setShowTutorial(false)}
-                  className="mt-4 bg-slate-800 text-white px-10 py-3 rounded-lg font-bold uppercase text-xs tracking-widest hover:bg-slate-700 transition-all shadow-lg shrink-0 w-full"
-                >
-                  Close Guide
-                </button>
-            </div>
-          </div>
-        )}
-
+         {/* Check Reg Modal */}
+         {showCheckReg && (
+             <div className="absolute inset-0 z-50 bg-white flex flex-col p-6 animate-fadeIn font-tech">
+                 <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-xl text-slate-800 uppercase tracking-wide font-bold">Status Check</h3>
+                    <button onClick={() => setShowCheckReg(false)} className="text-slate-400 hover:text-red-500 font-bold text-sm">CLOSE</button>
+                 </div>
+                 <div className="space-y-4">
+                     <div className="grid grid-cols-2 gap-2">
+                         <select value={checkYear} onChange={(e) => setCheckYear(e.target.value as Year)} className="p-2 bg-slate-50 border border-slate-200 rounded text-xs font-bold text-slate-700 outline-none">{Object.values(Year).filter(y=>y!==Year.Staff).map(y=><option key={y} value={y}>{y}</option>)}</select>
+                         <select value={checkMajor} onChange={(e) => setCheckMajor(e.target.value as Major)} className="p-2 bg-slate-50 border border-slate-200 rounded text-xs font-bold text-slate-700 outline-none">{STUDENT_MAJORS.map(m=><option key={m} value={m}>{m}</option>)}</select>
+                     </div>
+                     <input 
+                       type="text" 
+                       value={checkQuery} 
+                       onChange={(e) => setCheckQuery(e.target.value)} 
+                       placeholder="Enter Name or Roll No."
+                       className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold text-slate-700 outline-none focus:border-[#0891b2]"
+                       autoFocus
+                     />
+                 </div>
+                 <div className="mt-4 flex-1 overflow-y-auto custom-scrollbar">
+                     {checkQuery.length < 2 ? (
+                         <p className="text-center text-slate-400 text-xs mt-10">Type at least 2 characters...</p>
+                     ) : checkResults.length > 0 ? (
+                         <div className="space-y-2">
+                             {checkResults.map((res, i) => (
+                                 <div key={i} className="flex justify-between items-center p-3 border border-slate-100 rounded bg-slate-50">
+                                     <div>
+                                         <p className="font-bold text-slate-700 text-sm">{res.name}</p>
+                                         <p className="text-[10px] text-slate-400 font-bold uppercase">Roll: {res.rollNumber}</p>
+                                     </div>
+                                     <span className={`text-[10px] font-bold px-2 py-1 rounded uppercase ${res.hasVoted ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-500'}`}>{res.hasVoted ? 'Voted' : 'Pending'}</span>
+                                 </div>
+                             ))}
+                         </div>
+                     ) : (
+                         !isChecking && <p className="text-center text-slate-400 text-xs mt-10">No students found.</p>
+                     )}
+                 </div>
+             </div>
+         )}
       </div>
 
-      <button 
-        onClick={onAdminClick}
-        className="mt-6 text-slate-400 hover:text-cyan-600 text-xs font-bold uppercase tracking-widest transition-colors flex items-center gap-2"
-      >
-        Admin
-      </button>
+      <button onClick={onAdminClick} className="mt-8 text-slate-400 text-xs font-bold uppercase tracking-widest hover:text-slate-600 transition-colors">Admin Portal</button>
     </div>
   );
 };

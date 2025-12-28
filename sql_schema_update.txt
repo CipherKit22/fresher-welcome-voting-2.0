@@ -1,0 +1,6 @@
+
+-- Run this command in your Supabase SQL Editor to fix the "could not find bio column" error
+
+ALTER TABLE candidates ADD COLUMN IF NOT EXISTS bio text;
+
+-- After running this, the "Add Candidate" function in the dashboard will work.

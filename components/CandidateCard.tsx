@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Candidate } from '../types';
 
@@ -55,14 +54,14 @@ const CandidateCard: React.FC<CandidateCardProps> = ({
             className={`w-full h-full object-cover transition-all duration-500 ${isSelected ? 'scale-105 saturate-125' : 'grayscale-[0.1] group-hover:grayscale-0'}`}
           />
           
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-900/90 via-slate-900/20 to-transparent flex flex-col justify-end p-3 md:p-4">
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-900/90 via-slate-900/20 to-transparent flex flex-col justify-end p-2 sm:p-3 md:p-4">
             <div>
-              <h3 className="text-sm sm:text-base md:text-xl font-bold text-white font-tech uppercase tracking-wide leading-tight mb-0.5 md:mb-1 drop-shadow-md">
-                 <span className="opacity-80 text-xs md:text-sm mr-1">#{candidate.candidateNumber}</span>
+              <h3 className="text-xs sm:text-sm md:text-xl font-bold text-white font-tech uppercase tracking-wide leading-tight mb-0.5 md:mb-1 drop-shadow-md">
+                 <span className="opacity-80 text-[10px] sm:text-xs md:text-sm mr-1">#{candidate.candidateNumber}</span>
                  {candidate.name}
               </h3>
               <div className="flex items-center gap-2">
-                <p className={`${isMale ? 'text-cyan-300' : 'text-pink-300'} font-bold text-[10px] md:text-xs uppercase tracking-widest drop-shadow-sm`}>
+                <p className={`${isMale ? 'text-cyan-300' : 'text-pink-300'} font-bold text-[9px] sm:text-[10px] md:text-xs uppercase tracking-widest drop-shadow-sm`}>
                     {candidate.major}
                 </p>
                 {/* Inline Info Button */}
@@ -72,7 +71,7 @@ const CandidateCard: React.FC<CandidateCardProps> = ({
                             e.stopPropagation();
                             onInfoClick(candidate);
                         }}
-                        className="text-[10px] font-bold text-white bg-white/20 hover:bg-white/30 px-2 py-0.5 rounded backdrop-blur-sm transition-colors uppercase tracking-wider flex items-center gap-1"
+                        className="text-[9px] sm:text-[10px] font-bold text-white bg-white/20 hover:bg-white/30 px-1.5 py-0.5 rounded backdrop-blur-sm transition-colors uppercase tracking-wider flex items-center gap-1"
                         type="button"
                     >
                         View Bio
