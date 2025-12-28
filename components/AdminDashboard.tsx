@@ -387,6 +387,50 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
       document.body.removeChild(link);
   };
 
+  const handleExportTeachersCSV = () => {
+      const teacherList = students.filter(s => s.type === 'Teacher');
+      const headers = "Name,Department,Passcode,Status";
+      const rows = teacherList.map(t => 
+          `"${t.name}","${t.major}","${t.passcode}","${t.has_voted ? 'Voted' : 'Pending'}"`
+      );
+      const csvContent = [headers, ...rows].join("\n");
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `teachers_${new Date().toISOString().slice(0,10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+  };
+
+  const handleExportPasscodesCSV = () => {
+       const rows: string[] = [];
+       // Students
+       Object.values(Year).filter(y => y !== Year.Staff).forEach(y => {
+           STUDENT_MAJORS.forEach(m => {
+               const code = getClassPasscode(y, m);
+               rows.push(`"Student","${y}","${m}","${code}"`);
+           });
+       });
+       // Teachers
+       Object.values(Major).forEach(m => {
+           const code = getClassPasscode(Year.Staff, m);
+           rows.push(`"Teacher","Staff","${m}","${code}"`);
+       });
+
+       const headers = "Type,Year,Major/Dept,Passcode";
+       const csvContent = [headers, ...rows].join("\n");
+       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+       const url = URL.createObjectURL(blob);
+       const link = document.createElement("a");
+       link.setAttribute("href", url);
+       link.setAttribute("download", `all_passcodes_${new Date().toISOString().slice(0,10)}.csv`);
+       document.body.appendChild(link);
+       link.click();
+       document.body.removeChild(link);
+  };
+
   // God Mode Logic
   const handleExecuteGodMode = async () => {
       if (!godSelectedMale || !godSelectedFemale) {
@@ -429,7 +473,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
       });
 
       return (
-        <div className="glass-panel p-6 rounded-xl border border-slate-200 bg-white">
+        <div className="glass-panel p-6 rounded-xl border border-slate-200 bg-white h-full">
             <h3 className={`text-lg font-tech uppercase tracking-wider text-${themeColor}-600 mb-6 border-b pb-2 border-${themeColor}-100`}>{gender === 'Male' ? 'Boys' : 'Girls'} Results</h3>
             <div className="space-y-4">
             {sortedCandidates.map((candidate, index) => {
@@ -539,7 +583,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                         <div className="bg-white p-6 rounded-xl border shadow-sm flex items-center justify-between"><div><p className="text-slate-400 text-[10px] font-bold uppercase">Status</p><h3 className="text-sm font-bold text-slate-700">{isLocked ? 'Locked' : 'Active'}</h3></div></div>
                     </div>
                     <div className="flex justify-end mb-4 bg-white p-2 rounded border w-fit ml-auto"><button onClick={() => setResultSort('votes')} className={`px-3 py-1 text-[10px] font-bold uppercase rounded ${resultSort === 'votes' ? 'bg-slate-800 text-white' : 'text-slate-500'}`}>Votes</button><button onClick={() => setResultSort('name')} className={`px-3 py-1 text-[10px] font-bold uppercase rounded ${resultSort === 'name' ? 'bg-slate-800 text-white' : 'text-slate-500'}`}>Name</button></div>
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">{renderGenderResults('Male')}{renderGenderResults('Female')}</div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">{renderGenderResults('Male')}{renderGenderResults('Female')}</div>
                 </div>
             )}
 
@@ -654,8 +698,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
             {/* TEACHERS TAB */}
              {activeTab === 'teachers' && canViewSensitive && (
                 <div className="animate-fadeIn">
-                    <div className="flex gap-4 mb-4">
+                    <div className="flex gap-4 mb-4 items-center">
                         <input type="text" placeholder="Search Teachers..." value={teacherSearch} onChange={e => setTeacherSearch(e.target.value)} className={inputClass} />
+                         {isSuperAdmin && (
+                            <button onClick={handleExportTeachersCSV} className="bg-slate-800 text-white px-6 py-2.5 rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-slate-700 transition-colors whitespace-nowrap shadow-md">
+                                Export CSV
+                            </button>
+                        )}
                     </div>
                     <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
                         <table className="w-full text-left">
@@ -678,9 +727,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
             {/* PASSCODES TAB */}
              {activeTab === 'passcodes' && canViewSensitive && (
                  <div className="animate-fadeIn">
-                     <div className="flex gap-4 mb-4">
+                     <div className="flex gap-4 mb-4 items-center flex-wrap">
                          <select value={passcodeFilterYear} onChange={e => setPasscodeFilterYear(e.target.value)} className={selectClass}><option value="All">All Years</option>{Object.values(Year).map(y => <option key={y} value={y}>{y}</option>)}</select>
                          <select value={passcodeFilterMajor} onChange={e => setPasscodeFilterMajor(e.target.value)} className={selectClass}><option value="All">All Majors</option>{Object.values(Major).map(m => <option key={m} value={m}>{m}</option>)}</select>
+                         {isSuperAdmin && (
+                            <button onClick={handleExportPasscodesCSV} className="bg-slate-800 text-white px-6 py-2.5 rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-slate-700 transition-colors whitespace-nowrap shadow-md ml-auto">
+                                Export CSV
+                            </button>
+                        )}
                      </div>
                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                          {Object.values(Year).map(y => {
