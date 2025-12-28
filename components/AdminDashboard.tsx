@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Candidate, Major, AdminRole, Year, Votes } from '../types';
-import { fetchVoteResults, fetchCandidates, addCandidate, deleteCandidate, fetchStudents, addStudent, deleteStudent, fetchEventStartTime, updateEventStartTime, fetchTotalStudentCount, fetchTotalTeacherCount, updateStudentVoteStatus, bulkDeleteStudents, bulkUpdateStudentStatus, resetAllVotes, addTeacher, bulkUpdateClassPasscode, updateCandidate, submitVote } from '../services/supabaseService';
+import { fetchVoteResults, fetchCandidates, addCandidate, deleteCandidate, fetchStudents, fetchEventStartTime, updateEventStartTime, fetchTotalStudentCount, updateStudentVoteStatus, bulkUpdateClassPasscode, submitVote } from '../services/supabaseService';
 import { getClassPasscode, STUDENT_MAJORS } from '../constants';
 
 interface AdminDashboardProps {
@@ -99,7 +99,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   const [filterMajor, setFilterMajor] = useState<string>('All');
   const [filterStatus, setFilterStatus] = useState<'All' | 'Voted' | 'Pending'>('All');
   
+  // Teacher Filters
   const [teacherSearch, setTeacherSearch] = useState('');
+  const [teacherFilterMajor, setTeacherFilterMajor] = useState<string>('All');
+  const [teacherFilterStatus, setTeacherFilterStatus] = useState<'All' | 'Voted' | 'Pending'>('All');
+
   const [passcodeFilterYear, setPasscodeFilterYear] = useState<string>('All');
   const [passcodeFilterMajor, setPasscodeFilterMajor] = useState<string>('All');
   
@@ -298,8 +302,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
       if (newCode && newCode !== currentCode) {
           try {
               await bulkUpdateClassPasscode(year, major, newCode);
-              // Note: This updates the DB rows. It does not update the constants.ts file.
-              // Admin needs to know this only affects existing/db students.
               showToast(`Passcode updated for ${year} ${major}`);
               loadStudents(); // Refresh student list to show new passcodes
           } catch (e) {
@@ -370,6 +372,29 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
       });
   };
 
+  const getFilteredTeachers = () => {
+    let filtered = students.filter(s => s.type === 'Teacher');
+
+    // Search
+    if (teacherSearch) {
+        const lower = teacherSearch.toLowerCase();
+        filtered = filtered.filter(s => s.name.toLowerCase().includes(lower));
+    }
+
+    // Filter Department (Major)
+    if (teacherFilterMajor !== 'All') {
+        filtered = filtered.filter(s => s.major === teacherFilterMajor);
+    }
+
+    // Filter Status
+    if (teacherFilterStatus !== 'All') {
+        const isVoted = teacherFilterStatus === 'Voted';
+        filtered = filtered.filter(s => !!s.has_voted === isVoted);
+    }
+    
+    return filtered.sort((a, b) => a.name.localeCompare(b.name));
+  };
+
   const handleExportCSV = () => {
       const displayed = getFilteredStudents();
       const headers = "Name,Roll Number,Year,Major,Passcode,Status";
@@ -388,7 +413,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   };
 
   const handleExportTeachersCSV = () => {
-      const teacherList = students.filter(s => s.type === 'Teacher');
+      const teacherList = getFilteredTeachers();
       const headers = "Name,Department,Passcode,Status";
       const rows = teacherList.map(t => 
           `"${t.name}","${t.major}","${t.passcode}","${t.has_voted ? 'Voted' : 'Pending'}"`
@@ -406,17 +431,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
 
   const handleExportPasscodesCSV = () => {
        const rows: string[] = [];
-       // Students
-       Object.values(Year).filter(y => y !== Year.Staff).forEach(y => {
-           STUDENT_MAJORS.forEach(m => {
+       
+       Object.values(Year).forEach(y => {
+           if (passcodeFilterYear !== 'All' && y !== passcodeFilterYear) return;
+
+           const majors = y === Year.Staff ? Object.values(Major) : STUDENT_MAJORS;
+           
+           majors.forEach(m => {
+               if (passcodeFilterMajor !== 'All' && m !== passcodeFilterMajor) return;
+
                const code = getClassPasscode(y, m);
-               rows.push(`"Student","${y}","${m}","${code}"`);
+               const type = y === Year.Staff ? 'Teacher' : 'Student';
+               const displayYear = y === Year.Staff ? 'Staff' : y;
+               rows.push(`"${type}","${displayYear}","${m}","${code}"`);
            });
-       });
-       // Teachers
-       Object.values(Major).forEach(m => {
-           const code = getClassPasscode(Year.Staff, m);
-           rows.push(`"Teacher","Staff","${m}","${code}"`);
        });
 
        const headers = "Type,Year,Major/Dept,Passcode";
@@ -425,7 +453,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
        const url = URL.createObjectURL(blob);
        const link = document.createElement("a");
        link.setAttribute("href", url);
-       link.setAttribute("download", `all_passcodes_${new Date().toISOString().slice(0,10)}.csv`);
+       link.setAttribute("download", `passcodes_${new Date().toISOString().slice(0,10)}.csv`);
        document.body.appendChild(link);
        link.click();
        document.body.removeChild(link);
@@ -698,8 +726,19 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
             {/* TEACHERS TAB */}
              {activeTab === 'teachers' && canViewSensitive && (
                 <div className="animate-fadeIn">
-                    <div className="flex gap-4 mb-4 items-center">
-                        <input type="text" placeholder="Search Teachers..." value={teacherSearch} onChange={e => setTeacherSearch(e.target.value)} className={inputClass} />
+                    <div className="flex flex-col md:flex-row gap-4 mb-4 items-end">
+                        <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4 w-full">
+                            <input type="text" placeholder="Search Teachers..." value={teacherSearch} onChange={e => setTeacherSearch(e.target.value)} className={inputClass} />
+                            <select value={teacherFilterMajor} onChange={e => setTeacherFilterMajor(e.target.value)} className={selectClass}>
+                                <option value="All">All Departments</option>
+                                {Object.values(Major).map(m => <option key={m} value={m}>{m}</option>)}
+                            </select>
+                            <select value={teacherFilterStatus} onChange={e => setTeacherFilterStatus(e.target.value as any)} className={selectClass}>
+                                <option value="All">All Status</option>
+                                <option value="Voted">Voted</option>
+                                <option value="Pending">Pending</option>
+                            </select>
+                        </div>
                          {isSuperAdmin && (
                             <button onClick={handleExportTeachersCSV} className="bg-slate-800 text-white px-6 py-2.5 rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-slate-700 transition-colors whitespace-nowrap shadow-md">
                                 Export CSV
@@ -710,7 +749,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                         <table className="w-full text-left">
                             <thead className="bg-slate-50 border-b"><tr className="text-[10px] font-bold text-slate-500 uppercase"><th className="p-4">Name</th><th className="p-4">Department</th><th className="p-4">Passcode</th><th className="p-4">Status</th></tr></thead>
                             <tbody className="divide-y">
-                                {students.filter(s => s.type === 'Teacher' && s.name.toLowerCase().includes(teacherSearch.toLowerCase())).map(s => (
+                                {getFilteredTeachers().map(s => (
                                     <tr key={s.id} className="hover:bg-slate-50">
                                         <td className="p-4 font-bold text-sm text-slate-700">{s.name}</td>
                                         <td className="p-4 text-xs font-bold uppercase text-slate-500">{s.major}</td>
@@ -739,7 +778,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                          {Object.values(Year).map(y => {
                              const majors = y === Year.Staff ? Object.values(Major) : STUDENT_MAJORS;
-                             return majors.filter(m => (passcodeFilterYear === 'All' || y === passcodeFilterYear) && (passcodeFilterMajor === 'All' || m === passcodeFilterMajor)).map(m => {
+                             return majors.filter(m => {
+                                 const yearMatch = passcodeFilterYear === 'All' || y === passcodeFilterYear;
+                                 const majorMatch = passcodeFilterMajor === 'All' || m === passcodeFilterMajor;
+                                 return yearMatch && majorMatch;
+                             }).map(m => {
                                  const code = getClassPasscode(y, m);
                                  return (
                                      <div key={`${y}-${m}`} className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm flex justify-between items-center hover:shadow-md transition-shadow">
@@ -753,8 +796,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                                             )}
                                          </div>
                                      </div>
-                                 )
-                             })
+                                 );
+                             });
                          }).flat()}
                      </div>
                  </div>
