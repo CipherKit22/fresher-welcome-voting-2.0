@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Candidate, Major, AdminRole, Year, Votes } from '../types';
-import { fetchVoteResults, fetchCandidates, addCandidate, deleteCandidate, fetchStudents, fetchEventStartTime, updateEventStartTime, fetchTotalStudentCount, fetchTotalTeacherCount, updateStudentVoteStatus, bulkUpdateClassPasscode, submitVote, fetchWinnerConfig, updateWinnerConfig, WinnerConfig } from '../services/supabaseService';
+import { fetchVoteResults, fetchCandidates, addCandidate, deleteCandidate, fetchStudents, fetchEventStartTime, updateEventStartTime, fetchTotalStudentCount, fetchTotalTeacherCount, updateStudentVoteStatus, bulkUpdateClassPasscode, submitVote, fetchWinnerConfig, updateWinnerConfig, WinnerConfig, addStudent, deleteStudent, bulkDeleteStudents } from '../services/supabaseService';
 import { getClassPasscode, STUDENT_MAJORS } from '../constants';
 
 interface AdminDashboardProps {
@@ -100,6 +100,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   const [isLoading, setIsLoading] = useState(false);
   const [isUpdatingTime, setIsUpdatingTime] = useState(false);
   const [isAddingCandidate, setIsAddingCandidate] = useState(false);
+  const [isAddingStudent, setIsAddingStudent] = useState(false);
   
   // Filters
   const [resultSort, setResultSort] = useState<'votes' | 'name'>('votes');
@@ -125,6 +126,21 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   const [newCandMajor, setNewCandMajor] = useState<Major>(Major.CEIT);
   const [newCandGender, setNewCandGender] = useState<'Male' | 'Female'>('Male');
   const [newCandImageFile, setNewCandImageFile] = useState<File | null>(null);
+
+  // New Student Form
+  const [showAddStudentForm, setShowAddStudentForm] = useState(false);
+  const [newStudentName, setNewStudentName] = useState('');
+  const [newStudentRoll, setNewStudentRoll] = useState('');
+  const [newStudentYear, setNewStudentYear] = useState<Year>(Year.Y1);
+  const [newStudentMajor, setNewStudentMajor] = useState<Major>(Major.CEIT);
+  const [newStudentPasscode, setNewStudentPasscode] = useState('');
+
+  // Auto-fill passcode when year/major changes in add form
+  useEffect(() => {
+    if (showAddStudentForm) {
+        setNewStudentPasscode(getClassPasscode(newStudentYear, newStudentMajor));
+    }
+  }, [newStudentYear, newStudentMajor, showAddStudentForm]);
 
   // God Mode
   const [godClickCount, setGodClickCount] = useState(0);
@@ -336,6 +352,51 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
           await loadCandidates();
           showToast("Candidate deleted");
       } catch (e) {
+          showToast("Failed to delete", "error");
+      }
+  };
+
+  const handleAddStudent = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!newStudentName || !newStudentRoll || !newStudentPasscode) {
+          showToast("Please fill all fields", "error");
+          return;
+      }
+      setIsAddingStudent(true); 
+      try {
+          await addStudent(newStudentName, newStudentYear, newStudentMajor, newStudentRoll, newStudentPasscode);
+          showToast("Student added successfully");
+          setNewStudentName(''); setNewStudentRoll(''); 
+          // Keep year/major same for easier batch entry, reset passcode only if needed
+          setNewStudentPasscode(getClassPasscode(newStudentYear, newStudentMajor)); 
+          await loadStudents();
+          // Optionally close form, or keep open for rapid entry
+      } catch (e) {
+          showToast("Failed to add student", "error");
+      } finally {
+          setIsAddingStudent(false);
+      }
+  };
+
+  const handleDeleteStudent = async (id: string) => {
+      if(!confirm("Are you sure you want to delete this student?")) return;
+      try {
+          await deleteStudent(id);
+          showToast("Student deleted");
+          await loadStudents();
+      } catch(e) {
+          showToast("Failed to delete", "error");
+      }
+  };
+
+  const handleBulkDelete = async () => {
+      if(!confirm(`Delete ${selectedStudentIds.size} students?`)) return;
+      try {
+          await bulkDeleteStudents(Array.from(selectedStudentIds));
+          showToast("Students deleted");
+          setSelectedStudentIds(new Set());
+          await loadStudents();
+      } catch(e) {
           showToast("Failed to delete", "error");
       }
   };
@@ -775,12 +836,60 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                             <select value={filterMajor} onChange={e => setFilterMajor(e.target.value)} className={selectClass}><option value="All">All Majors</option>{STUDENT_MAJORS.map(m => <option key={m} value={m}>{m}</option>)}</select>
                             <select value={filterStatus} onChange={e => setFilterStatus(e.target.value as any)} className={selectClass}><option value="All">All Status</option><option value="Voted">Voted</option><option value="Pending">Pending</option></select>
                         </div>
-                        {isSuperAdmin && (
-                            <button onClick={handleExportCSV} className="bg-slate-800 text-white px-6 py-2.5 rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-slate-700 transition-colors whitespace-nowrap shadow-md">
-                                Export CSV
-                            </button>
+                         {isSuperAdmin && (
+                            <div className="flex gap-2">
+                                <button onClick={() => setShowAddStudentForm(!showAddStudentForm)} className="bg-cyan-600 text-white px-4 py-2.5 rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-cyan-700 transition-colors whitespace-nowrap shadow-md">
+                                    {showAddStudentForm ? 'Cancel Add' : 'Add Student'}
+                                </button>
+                                {selectedStudentIds.size > 0 && (
+                                    <button onClick={handleBulkDelete} className="bg-red-600 text-white px-4 py-2.5 rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-red-700 transition-colors whitespace-nowrap shadow-md">
+                                        Delete ({selectedStudentIds.size})
+                                    </button>
+                                )}
+                                <button onClick={handleExportCSV} className="bg-slate-800 text-white px-4 py-2.5 rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-slate-700 transition-colors whitespace-nowrap shadow-md">
+                                    Export CSV
+                                </button>
+                            </div>
                         )}
                     </div>
+                    
+                    {/* Add Student Form */}
+                    {showAddStudentForm && isSuperAdmin && (
+                        <div className="bg-white p-6 rounded-xl border border-cyan-200 shadow-sm mb-6 animate-fadeIn">
+                            <h3 className="text-sm font-bold text-slate-800 uppercase tracking-widest mb-4">Add New Student</h3>
+                            <form onSubmit={handleAddStudent} className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+                                <div className="md:col-span-1">
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Year</label>
+                                    <select value={newStudentYear} onChange={e => setNewStudentYear(e.target.value as Year)} className={selectClass}>
+                                        {Object.values(Year).filter(y => y !== Year.Staff).map(y => <option key={y} value={y}>{y}</option>)}
+                                    </select>
+                                </div>
+                                <div className="md:col-span-1">
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Major</label>
+                                    <select value={newStudentMajor} onChange={e => setNewStudentMajor(e.target.value as Major)} className={selectClass}>
+                                        {STUDENT_MAJORS.map(m => <option key={m} value={m}>{m}</option>)}
+                                    </select>
+                                </div>
+                                <div className="md:col-span-1">
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Roll No.</label>
+                                    <input type="text" value={newStudentRoll} onChange={e => setNewStudentRoll(e.target.value)} className={inputClass} required placeholder="e.g. 1" />
+                                </div>
+                                <div className="md:col-span-1">
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Name</label>
+                                    <input type="text" value={newStudentName} onChange={e => setNewStudentName(e.target.value)} className={inputClass} required placeholder="Student Name" />
+                                </div>
+                                <div className="md:col-span-1">
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Passcode</label>
+                                    <input type="text" value={newStudentPasscode} onChange={e => setNewStudentPasscode(e.target.value)} className={inputClass} required placeholder="Code" />
+                                </div>
+                                <div className="md:col-span-5 flex justify-end">
+                                    <button type="submit" disabled={isAddingStudent} className="bg-cyan-600 hover:bg-cyan-700 text-white px-6 py-2.5 rounded-lg font-bold text-xs uppercase tracking-widest shadow-md transition-colors">
+                                        {isAddingStudent ? 'Adding...' : 'Add Student'}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    )}
 
                     <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                         <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
@@ -802,7 +911,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                                         <td className="p-4"><span className={`text-[10px] font-bold uppercase px-2 py-1 rounded ${s.has_voted ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>{s.has_voted ? 'Voted' : 'Pending'}</span></td>
                                         <td className="p-4 text-right flex justify-end gap-2">
                                             {isSuperAdmin && (
-                                                <button onClick={() => handleStudentStatusChange(s.id, !s.has_voted)} className="text-cyan-600 hover:text-cyan-800 text-[10px] font-bold uppercase border border-cyan-200 px-2 py-1 rounded hover:bg-cyan-50">Toggle</button>
+                                                <>
+                                                    <button onClick={() => handleStudentStatusChange(s.id, !s.has_voted)} className="text-cyan-600 hover:text-cyan-800 text-[10px] font-bold uppercase border border-cyan-200 px-2 py-1 rounded hover:bg-cyan-50">Toggle</button>
+                                                    <button onClick={() => handleDeleteStudent(s.id)} className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50" title="Delete Student">
+                                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                                    </button>
+                                                </>
                                             )}
                                         </td>
                                     </tr>
