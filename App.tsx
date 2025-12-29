@@ -125,7 +125,7 @@ const App: React.FC = () => {
                     <h2 className="text-xl font-tech font-bold uppercase tracking-widest text-slate-800">Voting Rules</h2>
                 </div>
                 <p className="text-slate-600 text-center leading-relaxed font-medium mb-8 whitespace-pre-line">
-                    Online voting 50% နှင့် ပါမောက္ခချုပ်ဆရာမကြီး၊ ဒုတိယပါမောက္ခချုပ်ဆရာမကြီးနှင့်တကွ ဌာနမှူးများပါဝင်သော ဒိုင်အဖွဲ့၏ အမှတ်ပေးရွေးချယ်မှု 50%
+                    ပါမောက္ခချုပ်ဆရာမကြီးနှင့် ဒုတိယပါမောက္ခချုပ်ဆရာမကြီးပါဝင်သော ဒိုင်အဖွဲ့၏ အမှတ်ပေးရွေးချယ်မှု 50%
                     <br/><br/>
                     မှတ်ချက်။  ။ voting resultများကို ကော်မတီအဖွဲဝင် ၇ ဦးက မျှတစွာဆောင်ရွက်သွားပါမည်ဖြစ်ပါသည်။
                 </p>
