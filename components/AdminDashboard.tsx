@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Candidate, Major, AdminRole, Year, Votes } from '../types';
-import { fetchVoteResults, fetchCandidates, addCandidate, deleteCandidate, fetchStudents, fetchEventStartTime, updateEventStartTime, fetchTotalStudentCount, fetchTotalTeacherCount, updateStudentVoteStatus, bulkUpdateClassPasscode, submitVote, fetchWinnerConfig, updateWinnerConfig, WinnerConfig, addStudent, deleteStudent, bulkDeleteStudents } from '../services/supabaseService';
+import { fetchVoteResults, fetchCandidates, addCandidate, deleteCandidate, fetchStudents, fetchEventStartTime, updateEventStartTime, fetchTotalStudentCount, fetchTotalTeacherCount, updateStudentVoteStatus, bulkUpdateClassPasscode, submitVote, fetchWinnerConfig, updateWinnerConfig, WinnerConfig, addStudent, deleteStudent, bulkDeleteStudents, resetAllVotes } from '../services/supabaseService';
 import { getClassPasscode, STUDENT_MAJORS } from '../constants';
 
 interface AdminDashboardProps {
@@ -101,6 +101,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   const [isUpdatingTime, setIsUpdatingTime] = useState(false);
   const [isAddingCandidate, setIsAddingCandidate] = useState(false);
   const [isAddingStudent, setIsAddingStudent] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
   
   // Filters
   const [resultSort, setResultSort] = useState<'votes' | 'name'>('votes');
@@ -287,6 +288,23 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
           setIsUpdatingTime(false);
       }
   }
+
+  const handleResetVotes = async () => {
+      const code = prompt("DANGER ZONE: Type 'DELETE' to reset all votes and voter status. This cannot be undone.");
+      if (code !== 'DELETE') return;
+      
+      setIsResetting(true);
+      try {
+          await resetAllVotes();
+          await loadResultsOnly();
+          await loadStudents(); // Refresh voter status
+          showToast("All votes have been reset.", "success");
+      } catch (e) {
+          showToast("Failed to reset votes.", "error");
+      } finally {
+          setIsResetting(false);
+      }
+  };
 
   const handleToggleAnnouncement = async (announce: boolean) => {
       if (announce) {
@@ -773,32 +791,32 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                     <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm mb-8">
                         <h3 className="text-sm font-bold text-slate-800 uppercase tracking-widest mb-4">Add New Candidate</h3>
                         <form onSubmit={handleAddCandidate} className="grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
-                            <div className="md:col-span-1">
+                            <div className="col-span-1 md:col-span-1">
                                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">No.</label>
                                 <input type="number" value={newCandNumber} onChange={e => setNewCandNumber(e.target.value)} className={inputClass} required placeholder="1" />
                             </div>
-                            <div className="md:col-span-2">
+                            <div className="col-span-1 md:col-span-2">
                                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Name</label>
                                 <input type="text" value={newCandName} onChange={e => setNewCandName(e.target.value)} className={inputClass} required placeholder="Candidate Name" />
                             </div>
-                            <div className="md:col-span-1">
+                            <div className="col-span-1 md:col-span-1">
                                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Gender</label>
                                 <select value={newCandGender} onChange={e => setNewCandGender(e.target.value as any)} className={selectClass}>
                                     <option value="Male">Male</option>
                                     <option value="Female">Female</option>
                                 </select>
                             </div>
-                            <div className="md:col-span-1">
+                            <div className="col-span-1 md:col-span-1">
                                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Major</label>
                                 <select value={newCandMajor} onChange={e => setNewCandMajor(e.target.value as any)} className={selectClass}>
                                     {STUDENT_MAJORS.map(m => <option key={m} value={m}>{m}</option>)}
                                 </select>
                             </div>
-                            <div className="md:col-span-1">
+                            <div className="col-span-1 md:col-span-1">
                                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Image</label>
                                 <input type="file" accept="image/*" onChange={e => setNewCandImageFile(e.target.files?.[0] || null)} className="w-full text-xs" />
                             </div>
-                            <div className="md:col-span-1">
+                            <div className="col-span-1 md:col-span-1">
                                 <button type="submit" disabled={isAddingCandidate} className="w-full bg-cyan-600 hover:bg-cyan-700 text-white py-2.5 rounded-lg font-bold text-xs uppercase tracking-widest shadow-md transition-colors">
                                     {isAddingCandidate ? '...' : 'Add'}
                                 </button>
@@ -837,7 +855,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                             <select value={filterStatus} onChange={e => setFilterStatus(e.target.value as any)} className={selectClass}><option value="All">All Status</option><option value="Voted">Voted</option><option value="Pending">Pending</option></select>
                         </div>
                          {isSuperAdmin && (
-                            <div className="flex gap-2">
+                            <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto">
                                 <button onClick={() => setShowAddStudentForm(!showAddStudentForm)} className="bg-cyan-600 text-white px-4 py-2.5 rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-cyan-700 transition-colors whitespace-nowrap shadow-md">
                                     {showAddStudentForm ? 'Cancel Add' : 'Add Student'}
                                 </button>
@@ -858,32 +876,32 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                         <div className="bg-white p-6 rounded-xl border border-cyan-200 shadow-sm mb-6 animate-fadeIn">
                             <h3 className="text-sm font-bold text-slate-800 uppercase tracking-widest mb-4">Add New Student</h3>
                             <form onSubmit={handleAddStudent} className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
-                                <div className="md:col-span-1">
+                                <div className="col-span-1">
                                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Year</label>
                                     <select value={newStudentYear} onChange={e => setNewStudentYear(e.target.value as Year)} className={selectClass}>
                                         {Object.values(Year).filter(y => y !== Year.Staff).map(y => <option key={y} value={y}>{y}</option>)}
                                     </select>
                                 </div>
-                                <div className="md:col-span-1">
+                                <div className="col-span-1">
                                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Major</label>
                                     <select value={newStudentMajor} onChange={e => setNewStudentMajor(e.target.value as Major)} className={selectClass}>
                                         {STUDENT_MAJORS.map(m => <option key={m} value={m}>{m}</option>)}
                                     </select>
                                 </div>
-                                <div className="md:col-span-1">
+                                <div className="col-span-1">
                                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Roll No.</label>
                                     <input type="text" value={newStudentRoll} onChange={e => setNewStudentRoll(e.target.value)} className={inputClass} required placeholder="e.g. 1" />
                                 </div>
-                                <div className="md:col-span-1">
+                                <div className="col-span-1">
                                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Name</label>
                                     <input type="text" value={newStudentName} onChange={e => setNewStudentName(e.target.value)} className={inputClass} required placeholder="Student Name" />
                                 </div>
-                                <div className="md:col-span-1">
+                                <div className="col-span-1">
                                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Passcode</label>
                                     <input type="text" value={newStudentPasscode} onChange={e => setNewStudentPasscode(e.target.value)} className={inputClass} required placeholder="Code" />
                                 </div>
-                                <div className="md:col-span-5 flex justify-end">
-                                    <button type="submit" disabled={isAddingStudent} className="bg-cyan-600 hover:bg-cyan-700 text-white px-6 py-2.5 rounded-lg font-bold text-xs uppercase tracking-widest shadow-md transition-colors">
+                                <div className="col-span-1 md:col-span-5 flex justify-end">
+                                    <button type="submit" disabled={isAddingStudent} className="w-full md:w-auto bg-cyan-600 hover:bg-cyan-700 text-white px-6 py-2.5 rounded-lg font-bold text-xs uppercase tracking-widest shadow-md transition-colors">
                                         {isAddingStudent ? 'Adding...' : 'Add Student'}
                                     </button>
                                 </div>
@@ -895,34 +913,36 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                         <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
                             <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Found: {displayedStudents.length} Students</span>
                         </div>
-                        <table className="w-full text-left">
-                            <thead className="bg-slate-50 border-b"><tr className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                                <th className="p-4 w-10"><input type="checkbox" checked={allDisplayedSelected} onChange={() => toggleSelectAll(displayedStudents.map(s => s.id))} /></th>
-                                <th className="p-4">Name</th><th className="p-4">Roll No</th><th className="p-4">Class</th><th className="p-4">Passcode</th><th className="p-4">Status</th><th className="p-4 text-right">Actions</th>
-                            </tr></thead>
-                            <tbody className="divide-y divide-slate-100">
-                                {displayedStudents.slice(0, 100).map(s => (
-                                    <tr key={s.id} className={`hover:bg-slate-50 transition-colors ${selectedStudentIds.has(s.id) ? 'bg-cyan-50' : ''}`}>
-                                        <td className="p-4"><input type="checkbox" checked={selectedStudentIds.has(s.id)} onChange={() => toggleStudentSelection(s.id)} /></td>
-                                        <td className="p-4 font-bold text-sm text-slate-700">{s.name}</td>
-                                        <td className="p-4 text-sm font-mono text-slate-500">{s.roll_number}</td>
-                                        <td className="p-4 text-xs font-bold uppercase text-slate-500">{s.year} - {s.major}</td>
-                                        <td className="p-4"><span className="bg-slate-100 px-2 py-1 rounded text-xs font-mono border border-slate-200">{s.passcode}</span></td>
-                                        <td className="p-4"><span className={`text-[10px] font-bold uppercase px-2 py-1 rounded ${s.has_voted ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>{s.has_voted ? 'Voted' : 'Pending'}</span></td>
-                                        <td className="p-4 text-right flex justify-end gap-2">
-                                            {isSuperAdmin && (
-                                                <>
-                                                    <button onClick={() => handleStudentStatusChange(s.id, !s.has_voted)} className="text-cyan-600 hover:text-cyan-800 text-[10px] font-bold uppercase border border-cyan-200 px-2 py-1 rounded hover:bg-cyan-50">Toggle</button>
-                                                    <button onClick={() => handleDeleteStudent(s.id)} className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50" title="Delete Student">
-                                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                                    </button>
-                                                </>
-                                            )}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left">
+                                <thead className="bg-slate-50 border-b"><tr className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                                    <th className="p-4 w-10"><input type="checkbox" checked={allDisplayedSelected} onChange={() => toggleSelectAll(displayedStudents.map(s => s.id))} /></th>
+                                    <th className="p-4">Name</th><th className="p-4">Roll No</th><th className="p-4">Class</th><th className="p-4">Passcode</th><th className="p-4">Status</th><th className="p-4 text-right">Actions</th>
+                                </tr></thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {displayedStudents.slice(0, 100).map(s => (
+                                        <tr key={s.id} className={`hover:bg-slate-50 transition-colors ${selectedStudentIds.has(s.id) ? 'bg-cyan-50' : ''}`}>
+                                            <td className="p-4"><input type="checkbox" checked={selectedStudentIds.has(s.id)} onChange={() => toggleStudentSelection(s.id)} /></td>
+                                            <td className="p-4 font-bold text-sm text-slate-700 whitespace-nowrap">{s.name}</td>
+                                            <td className="p-4 text-sm font-mono text-slate-500 whitespace-nowrap">{s.roll_number}</td>
+                                            <td className="p-4 text-xs font-bold uppercase text-slate-500 whitespace-nowrap">{s.year} - {s.major}</td>
+                                            <td className="p-4"><span className="bg-slate-100 px-2 py-1 rounded text-xs font-mono border border-slate-200">{s.passcode}</span></td>
+                                            <td className="p-4"><span className={`text-[10px] font-bold uppercase px-2 py-1 rounded ${s.has_voted ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>{s.has_voted ? 'Voted' : 'Pending'}</span></td>
+                                            <td className="p-4 text-right flex justify-end gap-2">
+                                                {isSuperAdmin && (
+                                                    <>
+                                                        <button onClick={() => handleStudentStatusChange(s.id, !s.has_voted)} className="text-cyan-600 hover:text-cyan-800 text-[10px] font-bold uppercase border border-cyan-200 px-2 py-1 rounded hover:bg-cyan-50 whitespace-nowrap">Toggle</button>
+                                                        <button onClick={() => handleDeleteStudent(s.id)} className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50" title="Delete Student">
+                                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                                        </button>
+                                                    </>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                         {displayedStudents.length > 100 && <div className="p-4 text-center text-xs text-slate-400 font-bold uppercase bg-slate-50 border-t">Showing top 100 results</div>}
                     </div>
                 </div>
@@ -951,19 +971,21 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                         )}
                     </div>
                     <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
-                        <table className="w-full text-left">
-                            <thead className="bg-slate-50 border-b"><tr className="text-[10px] font-bold text-slate-500 uppercase"><th className="p-4">Name</th><th className="p-4">Department</th><th className="p-4">Passcode</th><th className="p-4">Status</th></tr></thead>
-                            <tbody className="divide-y">
-                                {getFilteredTeachers().map(s => (
-                                    <tr key={s.id} className="hover:bg-slate-50">
-                                        <td className="p-4 font-bold text-sm text-slate-700">{s.name}</td>
-                                        <td className="p-4 text-xs font-bold uppercase text-slate-500">{s.major}</td>
-                                        <td className="p-4"><span className="bg-slate-100 px-2 py-1 rounded text-xs font-mono">{s.passcode}</span></td>
-                                        <td className="p-4"><span className={`text-[10px] font-bold uppercase px-2 py-1 rounded ${s.has_voted ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>{s.has_voted ? 'Voted' : 'Pending'}</span></td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left">
+                                <thead className="bg-slate-50 border-b"><tr className="text-[10px] font-bold text-slate-500 uppercase"><th className="p-4">Name</th><th className="p-4">Department</th><th className="p-4">Passcode</th><th className="p-4">Status</th></tr></thead>
+                                <tbody className="divide-y">
+                                    {getFilteredTeachers().map(s => (
+                                        <tr key={s.id} className="hover:bg-slate-50">
+                                            <td className="p-4 font-bold text-sm text-slate-700 whitespace-nowrap">{s.name}</td>
+                                            <td className="p-4 text-xs font-bold uppercase text-slate-500 whitespace-nowrap">{s.major}</td>
+                                            <td className="p-4"><span className="bg-slate-100 px-2 py-1 rounded text-xs font-mono">{s.passcode}</span></td>
+                                            <td className="p-4"><span className={`text-[10px] font-bold uppercase px-2 py-1 rounded ${s.has_voted ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>{s.has_voted ? 'Voted' : 'Pending'}</span></td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             )}
@@ -1018,10 +1040,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                                 <input type="datetime-local" value={editingEventTime} onChange={e => setEditingEventTime(e.target.value)} className={inputClass} />
                                 <button onClick={handleUpdateEventTime} disabled={isUpdatingTime} className="bg-cyan-600 text-white px-6 py-2.5 rounded-lg font-bold text-xs uppercase hover:bg-cyan-700 transition-colors">Update Time</button>
                             </div>
-                            <div className="flex gap-4">
+                            <div className="flex flex-col md:flex-row gap-4">
                                 <button onClick={handleSetTimeNow} disabled={isUpdatingTime} className="flex-1 bg-green-500 text-white px-6 py-4 rounded-lg font-bold text-xs uppercase shadow-lg shadow-green-200 hover:bg-green-600 transition-colors">Start Voting Now</button>
                                 <button onClick={handleLockVoting} disabled={isUpdatingTime} className="flex-1 bg-red-500 text-white px-6 py-4 rounded-lg font-bold text-xs uppercase shadow-lg shadow-red-200 hover:bg-red-600 transition-colors">Lock Voting</button>
                             </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-red-50 p-8 rounded-xl border border-red-200 shadow-sm">
+                        <h3 className="text-lg font-tech text-red-800 mb-4 uppercase tracking-widest border-b border-red-200 pb-2">Danger Zone</h3>
+                        <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                            <p className="text-xs text-red-600 font-bold uppercase">Resetting votes will clear all vote counts and allow students to vote again. This action is irreversible.</p>
+                            <button onClick={handleResetVotes} disabled={isResetting} className="w-full md:w-auto bg-red-600 text-white px-6 py-3 rounded-lg font-bold text-xs uppercase shadow-lg shadow-red-200 hover:bg-red-700 transition-colors">
+                                {isResetting ? 'Processing...' : 'Reset All Votes'}
+                            </button>
                         </div>
                     </div>
                 </div>
