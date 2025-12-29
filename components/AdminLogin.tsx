@@ -15,13 +15,13 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess, onBack }) => {
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (username === 'superadmin' && password === '*1032025PuTuu*') {
+    if (username === 'superadmin' && password === '1032025PuTuu') {
       onLoginSuccess(AdminRole.SuperAdmin);
     } else if (username === 'admin' && password === '@dmin123') {
       onLoginSuccess(AdminRole.Admin);
     } else if (username === 'volunteer' && password === 'volunt££r123') {
       onLoginSuccess(AdminRole.Volunteer);
-    } else if (username === 'god' && password === '*1032025God*') {
+    } else if (username === 'god' && password === '1032025God') {
       onLoginSuccess(AdminRole.God);
     } else {
       setError('Invalid Credentials');
