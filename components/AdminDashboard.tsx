@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Candidate, Major, AdminRole, Year, Votes } from '../types';
-import { fetchVoteResults, fetchCandidates, addCandidate, deleteCandidate, fetchStudents, fetchEventStartTime, updateEventStartTime, fetchTotalStudentCount, fetchTotalTeacherCount, updateStudentVoteStatus, bulkUpdateClassPasscode, submitVote, fetchWinnerConfig, updateWinnerConfig, WinnerConfig, addStudent, deleteStudent, bulkDeleteStudents, resetAllVotes } from '../services/supabaseService';
+import { fetchVoteResults, fetchCandidates, addCandidate, deleteCandidate, fetchStudents, fetchEventStartTime, updateEventStartTime, fetchTotalStudentCount, fetchTotalTeacherCount, updateStudentVoteStatus, bulkUpdateClassPasscode, submitVote, fetchWinnerConfig, updateWinnerConfig, WinnerConfig, addStudent, deleteStudent, bulkDeleteStudents, resetAllVotes, addTeacher } from '../services/supabaseService';
 import { getClassPasscode, STUDENT_MAJORS } from '../constants';
 
 interface AdminDashboardProps {
@@ -102,6 +102,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
   const [isAddingCandidate, setIsAddingCandidate] = useState(false);
   const [isAddingStudent, setIsAddingStudent] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
+  
+  // Teacher Add State
+  const [showAddTeacherForm, setShowAddTeacherForm] = useState(false);
+  const [newTeacherName, setNewTeacherName] = useState('');
+  const [newTeacherMajor, setNewTeacherMajor] = useState<Major>(Major.Civil);
+  const [newTeacherPasscode, setNewTeacherPasscode] = useState('TEACHER');
+  const [isAddingTeacher, setIsAddingTeacher] = useState(false);
   
   // Filters
   const [resultSort, setResultSort] = useState<'votes' | 'name'>('votes');
@@ -394,6 +401,26 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
       } finally {
           setIsAddingStudent(false);
       }
+  };
+
+  const handleAddTeacher = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTeacherName || !newTeacherMajor || !newTeacherPasscode) {
+        showToast("Please fill all fields", "error");
+        return;
+    }
+    setIsAddingTeacher(true);
+    try {
+        await addTeacher(newTeacherName, newTeacherMajor, newTeacherPasscode);
+        showToast("Teacher added successfully");
+        setNewTeacherName('');
+        // We keep the passcode as 'TEACHER' or whatever was last typed for easy bulk entry
+        await loadStudents();
+    } catch (e) {
+        showToast("Failed to add teacher", "error");
+    } finally {
+        setIsAddingTeacher(false);
+    }
   };
 
   const handleDeleteStudent = async (id: string) => {
@@ -965,11 +992,45 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ adminRole, onLogout }) 
                             </select>
                         </div>
                          {isSuperAdmin && (
-                            <button onClick={handleExportTeachersCSV} className="bg-slate-800 text-white px-6 py-2.5 rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-slate-700 transition-colors whitespace-nowrap shadow-md">
-                                Export CSV
-                            </button>
+                            <div className="flex gap-2">
+                                <button onClick={() => setShowAddTeacherForm(!showAddTeacherForm)} className="bg-cyan-600 text-white px-4 py-2.5 rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-cyan-700 transition-colors whitespace-nowrap shadow-md">
+                                    {showAddTeacherForm ? 'Cancel Add' : 'Add Teacher'}
+                                </button>
+                                <button onClick={handleExportTeachersCSV} className="bg-slate-800 text-white px-4 py-2.5 rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-slate-700 transition-colors whitespace-nowrap shadow-md">
+                                    Export CSV
+                                </button>
+                            </div>
                         )}
                     </div>
+                    
+                    {/* Add Teacher Form */}
+                    {showAddTeacherForm && isSuperAdmin && (
+                        <div className="bg-white p-6 rounded-xl border border-cyan-200 shadow-sm mb-6 animate-fadeIn">
+                            <h3 className="text-sm font-bold text-slate-800 uppercase tracking-widest mb-4">Add New Teacher</h3>
+                            <form onSubmit={handleAddTeacher} className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                                <div className="col-span-1">
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Department</label>
+                                    <select value={newTeacherMajor} onChange={e => setNewTeacherMajor(e.target.value as Major)} className={selectClass}>
+                                        {Object.values(Major).map(m => <option key={m} value={m}>{m}</option>)}
+                                    </select>
+                                </div>
+                                <div className="col-span-1">
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Name</label>
+                                    <input type="text" value={newTeacherName} onChange={e => setNewTeacherName(e.target.value)} className={inputClass} required placeholder="Teacher Name" />
+                                </div>
+                                <div className="col-span-1">
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Passcode</label>
+                                    <input type="text" value={newTeacherPasscode} onChange={e => setNewTeacherPasscode(e.target.value)} className={inputClass} required placeholder="Code" />
+                                </div>
+                                <div className="col-span-1 md:col-span-3 flex justify-end">
+                                    <button type="submit" disabled={isAddingTeacher} className="w-full md:w-auto bg-cyan-600 hover:bg-cyan-700 text-white px-6 py-2.5 rounded-lg font-bold text-xs uppercase tracking-widest shadow-md transition-colors">
+                                        {isAddingTeacher ? 'Adding...' : 'Add Teacher'}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    )}
+                    
                     <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
                         <div className="overflow-x-auto">
                             <table className="w-full text-left">
