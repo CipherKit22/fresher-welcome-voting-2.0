@@ -55,7 +55,7 @@ const WinnerReveal: React.FC<WinnerRevealProps> = ({ kingId, queenId, onAdminLog
          <h1 className="text-4xl md:text-6xl font-tech font-black uppercase tracking-[0.2em] text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-white to-pink-400 drop-shadow-lg">
             Winners Revealed
          </h1>
-         <p className="text-slate-400 font-bold uppercase tracking-widest mt-4">Fresher Welcome Ceremony 2024</p>
+         <p className="text-slate-400 font-bold uppercase tracking-widest mt-4">Fresher Welcome Ceremony 2025-2026</p>
       </div>
 
       <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 gap-12 max-w-6xl w-full">
